@@ -55,7 +55,7 @@ $violet
 make clean
 make mrproper
 cd out
-rm kernel.zip
+rm *.zip
 cd ../
 cd output
 rm boot.img
@@ -76,7 +76,7 @@ clear
 $cyan 
 mkdir gluon_works/bootimage/source_img
 echo "Processing the Bootimage"
-cp input_bootimage/boot.img gluon_works/bootimage/source_img/boot.img
+cp ../input_bootimage/boot.img gluon_works/bootimage/source_img/boot.img
 echo "Extraction of the Boot.img"
 $violet
 
@@ -134,7 +134,9 @@ rm -rf boot
 cd ../../
 $white
 echo "Making Flashable Zip"
-rm -rf out
+cd out
+rm *.zip
+cd ../
 mkdir out
 mkdir out/system
 mkdir out/system/lib
