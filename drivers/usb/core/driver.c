@@ -1275,6 +1275,39 @@ static int usb_resume_both(struct usb_device *udev, pm_message_t msg)
 }
 
 #ifdef CONFIG_USB_OTG
+#define DO_UNBIND      0
+#define DO_REBIND      1
+
+static void do_unbind_rebind(struct usb_device *udev, int action)
+{
+       struct usb_host_config  *config;
+       int                     i;
+       struct usb_interface    *intf;
+       struct usb_driver       *drv;
+
+       config = udev->actconfig;
+       if (config) {
+               for (i = 0; i < config->desc.bNumInterfaces; ++i) {
+                       intf = config->interface[i];
+                       switch (action) {
+                       case DO_UNBIND:
+								pr_info("[usbh][rene] %s(%d) DO_UNBIND i=%d \n", __func__, __LINE__, i);
+                               if (intf->dev.driver) {
+                                       drv = to_usb_driver(intf->dev.driver);
+                                       if (!drv->suspend || !drv->resume)
+                                               usb_forced_unbind_intf(intf);
+                               }
+                               break;
+                       case DO_REBIND:
+							pr_info("[usbh][rene] %s(%d) DO_REBIND i=%d \n", __func__, __LINE__, i);
+                               if (intf->needs_binding)
+                                       usb_rebind_intf(intf);
+                               break;
+                       }
+               }
+       }
+}
+
 void usb_hnp_polling_work(struct work_struct *work)
 {
 	int ret;
