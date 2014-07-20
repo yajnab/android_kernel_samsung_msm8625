@@ -182,7 +182,7 @@ static void hsuart_power(int on)
 		msm_hs_request_clock_off(bsi->uport);
 	}
 #if defined(CONFIG_MACH_ARUBA_OPEN)||defined(CONFIG_MACH_KYLEPLUS_OPEN)||defined(CONFIG_MACH_DELOS_OPEN)
-	BT_INFO("hsuart_power on=%d jiffies=%u",on, jiffies);
+	BT_INFO("hsuart_power on=%d jiffies=%lu",on, jiffies);
 
 #endif
 }
@@ -192,7 +192,7 @@ void bluesleep_sleep_wakeup(void)
 	//BT_INFO("[BT] bluesleep_sleep_wakeup");
 
 	if (bsi->uport != NULL && test_bit(BT_ASLEEP, &flags)) {
-		BT_INFO("[BT] waking up... flags=%d jiffies=%u",flags,jiffies);
+		BT_INFO("[BT] waking up... flags=%lu jiffies=%lu",flags,jiffies);
 
 		/* Start the timer */
 		mod_timer(&tx_timer, jiffies + (TX_TIMER_INTERVAL * HZ));
@@ -329,7 +329,7 @@ static void bluesleep_tx_timer_expire(unsigned long data)
 {
 	unsigned long irq_flags;
 
-	BT_INFO("[BT] bluesleep_tx_timer_expire jiffies=%u",jiffies);
+	BT_INFO("[BT] bluesleep_tx_timer_expire jiffies=%lu",jiffies);
 
 	spin_lock_irqsave(&rw_lock, irq_flags);
 
@@ -499,7 +499,7 @@ static int __init bluesleep_init(void)
 	snprintf(name, sizeof(name), "blue_sleep");
 	hostwake_work_queue = create_singlethread_workqueue(name);
 	if (hostwake_work_queue == NULL) {
-		BT_SLEEP_DBG("Unable to create workqueue \n");
+		//BT_SLEEP_DBG("Unable to create workqueue \n");
 		retval = -ENODEV;
 
 		return retval;
