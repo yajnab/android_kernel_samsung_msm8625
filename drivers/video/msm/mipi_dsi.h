@@ -118,6 +118,9 @@ enum dsi_trigger_type {
 #define DSI_INTR_CMD_DMA_DONE		BIT(0)
 
 #define DSI_MDP_TERM	BIT(8)
+#if defined(CONFIG_FB_MSM_MIPI_HX8357_CMD_SMD_HVGA_PT_PANEL)
+#define DSI_VIDEO_TERM BIT(1)
+#endif
 #define DSI_CMD_TERM	BIT(0)
 
 #define DSI_CMD_TRIGGER_NONE		0x0	/* mdp trigger */
@@ -188,7 +191,8 @@ struct dsi_clk_desc {
 #define DSI_HDR_DATA1(data)	((data) & 0x0ff)
 #define DSI_HDR_WC(wc)		((wc) & 0x0ffff)
 
-#define DSI_BUF_SIZE	64
+#define DSI_BUF_SIZE	2048
+
 #define MIPI_DSI_MRPS	0x04	/* Maximum Return Packet Size */
 
 #define MIPI_DSI_LEN 8 /* 4 x 4 - 6 - 2, bytes dcs header+crc-align  */
@@ -287,6 +291,9 @@ char *mipi_dsi_buf_reserve_hdr(struct dsi_buf *dp, int hlen);
 char *mipi_dsi_buf_init(struct dsi_buf *dp);
 void mipi_dsi_init(void);
 void mipi_dsi_lane_cfg(void);
+#if defined(CONFIG_FB_MSM_MIPI_HX8357_CMD_SMD_HVGA_PT_PANEL)
+void wait_for_video(int i);
+#endif
 void mipi_dsi_bist_ctrl(void);
 int mipi_dsi_buf_alloc(struct dsi_buf *, int size);
 int mipi_dsi_cmd_dma_add(struct dsi_buf *dp, struct dsi_cmd_desc *cm);
@@ -298,7 +305,7 @@ int mipi_dsi_cmds_rx(struct msm_fb_data_type *mfd,
 			struct dsi_buf *tp, struct dsi_buf *rp,
 			struct dsi_cmd_desc *cmds, int len);
 int mipi_dsi_cmd_dma_rx(struct dsi_buf *tp, int rlen);
-void mipi_dsi_host_init(struct mipi_panel_info *pinfo);
+void mipi_dsi_host_init(struct mipi_panel_info *pinfo, char dlane_swap);
 void mipi_dsi_op_mode_config(int mode);
 void mipi_dsi_cmd_mode_ctrl(int enable);
 void mdp4_dsi_cmd_trigger(void);

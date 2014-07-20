@@ -1721,6 +1721,7 @@ static irqreturn_t
 msmsdcc_irq(int irq, void *dev_id)
 {
 	struct msmsdcc_host	*host = dev_id;
+	struct mmc_host *mmc = host->mmc;
 	u32			status;
 	int			ret = 0;
 	int			timer = 0;
@@ -1762,6 +1763,12 @@ msmsdcc_irq(int irq, void *dev_id)
 				 */
 				wake_lock(&host->sdio_wlock);
 			} else {
+				if (!mmc->card || (mmc->card && !mmc_card_sdio(mmc->card))) {
+					pr_warning("%s: SDCC core interrupt received for non-SDIO cards when SDCC clocks are off\n",
+						mmc_hostname(mmc));
+					ret = 1;
+					break;
+				}
 				spin_unlock(&host->lock);
 				mmc_signal_sdio_irq(host->mmc);
 				spin_lock(&host->lock);
@@ -1790,6 +1797,12 @@ msmsdcc_irq(int irq, void *dev_id)
 #endif
 
 		if (status & MCI_SDIOINTROPE) {
+			if (!mmc->card || (mmc->card && !mmc_card_sdio(mmc->card))) {
+				pr_warning("%s: SDIO interrupt (SDIOINTROPE) received for non-SDIO card\n",
+					mmc_hostname(mmc));
+				ret = 1;
+				break;
+			}
 			if (host->sdcc_suspending)
 				wake_lock(&host->sdio_suspend_wlock);
 			spin_unlock(&host->lock);
@@ -2331,8 +2344,11 @@ static int msmsdcc_setup_vreg(struct msmsdcc_host *host, bool enable,
 	struct msm_mmc_reg_data *vreg_table[2];
 
 	curr_slot = host->plat->vreg_data;
-	if (!curr_slot)
+	if (!curr_slot) {
+		 pr_debug("%s: vreg info unavailable, assuming the slot is powered by always on domain\n",
+                        mmc_hostname(host->mmc));
 		goto out;
+	}
 
 	vreg_table[0] = curr_slot->vdd_data;
 	vreg_table[1] = curr_slot->vdd_io_data;
@@ -2752,6 +2768,14 @@ static u32 msmsdcc_setup_pwr(struct msmsdcc_host *host, struct mmc_ios *ios)
 		msmsdcc_set_vdd_io_vol(host, VDD_IO_LOW, 0);
 		msmsdcc_update_io_pad_pwr_switch(host);
 		msmsdcc_setup_pins(host, false);
+		/*
+		 * Reset the mask to prevent hitting any pending interrupts
+		 * after powering up the card again.
+		 */
+		if (atomic_read(&host->clks_on)) {
+			writel_relaxed(0, host->base + MMCIMASK0);
+			mb();
+		}
 		break;
 	case MMC_POWER_UP:
 		/* writing PWR_UP bit is redundant */
@@ -3208,6 +3232,12 @@ msmsdcc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		enable_irq(host->core_irqres->start);
 		host->sdcc_irq_disabled = 0;
 	}
+
+/* makesure the first CMD sended 15ms later to the CLK ON */
+#ifdef CONFIG_MACH_KYLEPLUS_CTC
+       mdelay(10);
+#endif
+
 	spin_unlock_irqrestore(&host->lock, flags);
 out:
 	mutex_unlock(&host->clk_mutex);
@@ -3993,6 +4023,57 @@ exit:
 	return rc;
 }
 
+/*
+ * Work around of the unavailability of a power_reset functionality in SD cards
+ * by turning the OFF & back ON the regulators supplying the SD card.
+ */
+void msmsdcc_hw_reset(struct mmc_host *mmc)
+{
+	struct mmc_card *card = mmc->card;
+	struct msmsdcc_host *host = mmc_priv(mmc);
+	int rc;
+
+	/* Write-protection bits would be lost on a hardware reset in emmc */
+	if (!card || !mmc_card_sd(card))
+		return;
+
+	pr_debug("%s: Starting h/w reset\n", mmc_hostname(host->mmc));
+
+	if (host->plat->translate_vdd || host->plat->vreg_data) {
+
+	/* Disable the regulators */
+		if (host->plat->translate_vdd)
+			rc = host->plat->translate_vdd(mmc_dev(mmc), 0);
+		else if (host->plat->vreg_data)
+			rc = msmsdcc_setup_vreg(host, false, false);
+
+	if (rc) {
+			pr_err("%s: Failed to disable voltage regulator\n",
+				mmc_hostname(host->mmc));
+			BUG_ON(rc);
+		}
+
+		/* 10ms delay for supply to reach the desired voltage level */
+		usleep_range(10000, 12000);
+
+		/* Enable the regulators */
+		if (host->plat->translate_vdd)
+			rc = host->plat->translate_vdd(mmc_dev(mmc), 1);
+		else if (host->plat->vreg_data)
+			rc = msmsdcc_setup_vreg(host, true, false);
+
+		if (rc) {
+			pr_err("%s: Failed to enable voltage regulator\n",
+				mmc_hostname(host->mmc));
+			BUG_ON(rc);
+		}
+
+		/* 10ms delay for supply to reach the desired voltage level */
+		usleep_range(10000, 12000);
+	}
+}
+
+
 static const struct mmc_host_ops msmsdcc_ops = {
 	.enable		= msmsdcc_enable,
 	.disable	= msmsdcc_disable,
@@ -4003,7 +4084,8 @@ static const struct mmc_host_ops msmsdcc_ops = {
 	.get_ro		= msmsdcc_get_ro,
 	.enable_sdio_irq = msmsdcc_enable_sdio_irq,
 	.start_signal_voltage_switch = msmsdcc_switch_io_voltage,
-	.execute_tuning = msmsdcc_execute_tuning
+	.execute_tuning = msmsdcc_execute_tuning,
+	.hw_reset = msmsdcc_hw_reset
 };
 
 static unsigned int
@@ -5022,6 +5104,39 @@ err:
 	return NULL;
 }
 
+/* SYSFS about SD Card Detection by hyeonjun5.oh */
+
+static struct device *t_flash_detect_dev;
+
+static ssize_t t_flash_detect_show(struct device *dev,
+				   struct device_attribute *attr, char *buf)
+{
+	struct mmc_host *mmc = dev_get_drvdata(dev);
+	struct msmsdcc_host *host = mmc_priv(mmc);
+	unsigned int detect = 0;
+	printk(KERN_ERR "%s : enter in sdc%d\n", __func__, host->pdev_id);
+
+#ifdef CONFIG_MMC_MSM_CARD_NO_HW_DETECTION
+	printk(KERN_INFO "%s : host eject = %d\n", __func__, host->eject);
+	detect = !host->eject;
+#else
+	if (host->plat->status)
+		detect = host->plat->status(mmc_dev(host->mmc));
+#endif
+
+	if (detect) {
+		printk(KERN_DEBUG "sdcc1: card inserted.\n");
+		return sprintf(buf, "Insert\n");
+	} else {
+		printk(KERN_DEBUG "sdcc1: card removed.\n");
+		return sprintf(buf, "Remove\n");
+	}
+}
+
+static DEVICE_ATTR(status, 0444, t_flash_detect_show, NULL);
+
+
+
 static int
 msmsdcc_probe(struct platform_device *pdev)
 {
@@ -5307,6 +5422,7 @@ msmsdcc_probe(struct platform_device *pdev)
 	mmc->caps |= plat->mmc_bus_width;
 	mmc->caps |= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED;
 	mmc->caps |= MMC_CAP_WAIT_WHILE_BUSY | MMC_CAP_ERASE;
+	mmc->caps |= MMC_CAP_HW_RESET;
 
 	/*
 	 * If we send the CMD23 before multi block write/read command
@@ -5338,7 +5454,7 @@ msmsdcc_probe(struct platform_device *pdev)
 		mmc->caps |= MMC_CAP_NONREMOVABLE;
 	mmc->caps |= MMC_CAP_SDIO_IRQ;
 
-	mmc->caps2 |= MMC_CAP2_INIT_BKOPS | MMC_CAP2_BKOPS;
+	//mmc->caps2 |= MMC_CAP2_INIT_BKOPS | MMC_CAP2_BKOPS;
 
 	if (plat->is_sdio_al_client)
 		mmc->pm_flags |= MMC_PM_IGNORE_PM_NOTIFY;
@@ -5436,6 +5552,25 @@ msmsdcc_probe(struct platform_device *pdev)
 	} else if (!plat->status)
 		pr_err("%s: No card detect facilities available\n",
 		       mmc_hostname(mmc));
+
+/* SYSFS about SD Card Detection by hyeonjun5.oh */
+	if (t_flash_detect_dev == NULL && (host->pdev_id == 1)) {
+		printk(KERN_ERR "MAKE SYSFS\n");
+		printk(KERN_DEBUG "%s : Change sysfs Card Detect\n", __func__);
+
+		t_flash_detect_dev = device_create(sec_class,
+			NULL, 0, NULL, "sdcard");
+		if (IS_ERR(t_flash_detect_dev))
+			pr_err("%s : Failed to create device!\n", __func__);
+		else {
+			if (device_create_file(t_flash_detect_dev,
+				&dev_attr_status) < 0)
+				pr_err("%s : Failed to create device file(%s)!\n",
+				       __func__, dev_attr_status.attr.name);
+
+			dev_set_drvdata(t_flash_detect_dev, mmc);
+		}
+	}
 
 	mmc_set_drvdata(pdev, mmc);
 
@@ -5833,6 +5968,8 @@ static inline void msmsdcc_ungate_clock(struct msmsdcc_host *host)
 }
 #endif
 
+static int msm_sdcc_suspend_state;
+
 static int
 msmsdcc_runtime_suspend(struct device *dev)
 {
@@ -5845,6 +5982,33 @@ msmsdcc_runtime_suspend(struct device *dev)
 		rc = 0;
 		goto out;
 	}
+
+#if 1 /* 20121004 Matt */
+    if (host->pdev_id == 2) {
+        printk(KERN_INFO "SDCC CH 2 : msmsdcc_runtime_suspend WLAN SKIP Suspend\n");
+
+        spin_lock_irqsave(&host->lock, flags);
+        writel(0, host->base + MMCIMASK0);
+
+        if (atomic_read(&host->clks_on)) {
+            clk_disable_unprepare(host->clk);
+
+            if (!IS_ERR(host->pclk))
+                clk_disable_unprepare(host->pclk);
+
+            if (!IS_ERR_OR_NULL(host->bus_clk))
+                clk_disable_unprepare(host->bus_clk);
+
+            atomic_set(&host->clks_on, 0);
+        }     
+        spin_unlock_irqrestore(&host->lock, flags);
+
+        return 0;
+    }
+#endif
+
+	if ((!msm_sdcc_suspend_state) && (host->pdev_id == 1))
+		return -EBUSY;
 
 	pr_debug("%s: %s: start\n", mmc_hostname(mmc), __func__);
 	if (mmc) {
@@ -5909,6 +6073,29 @@ msmsdcc_runtime_resume(struct device *dev)
 	if (host->plat->is_sdio_al_client)
 		return 0;
 
+#if 1 /* 20121004 Matt */
+    if (host->pdev_id == 2) {
+        printk(KERN_INFO "SDCC CH 2 : msmsdcc_runtime_resume WLAN SKIP Resume\n");
+
+        spin_lock_irqsave(&host->lock, flags);
+
+        if (!atomic_read(&host->clks_on)) {
+            if (!IS_ERR_OR_NULL(host->bus_clk))
+                clk_prepare_enable(host->bus_clk);
+
+            if (!IS_ERR(host->pclk))
+                clk_prepare_enable(host->pclk);
+
+            clk_prepare_enable(host->clk);
+            atomic_set(&host->clks_on, 1);
+        }
+        writel(host->mci_irqenable, host->base + MMCIMASK0);
+        spin_unlock_irqrestore(&host->lock, flags);
+
+        return 0;
+    }
+#endif
+
 	pr_debug("%s: %s: start\n", mmc_hostname(mmc), __func__);
 	if (mmc) {
 		if (mmc->card && mmc_card_sdio(mmc->card) &&
@@ -5965,6 +6152,7 @@ static int msmsdcc_pm_suspend(struct device *dev)
 	struct msmsdcc_host *host = mmc_priv(mmc);
 	int rc = 0;
 
+	msm_sdcc_suspend_state = 1;
 	if (host->plat->is_sdio_al_client)
 		return 0;
 
@@ -5972,8 +6160,21 @@ static int msmsdcc_pm_suspend(struct device *dev)
 	if (host->plat->status_irq)
 		disable_irq(host->plat->status_irq);
 
-	if (!pm_runtime_suspended(dev))
+	/*
+	 * If system comes out of suspend, msmsdcc_pm_resume() sets the
+	 * host->pending_resume flag if the SDCC wasn't runtime suspended.
+	 * Now if the system again goes to suspend without any SDCC activity
+	 * then host->pending_resume flag will remain set which may cause
+	 * the SDCC resume to happen first and then suspend.
+	 * To avoid this unnecessary resume/suspend, make sure that
+	 * pending_resume flag is cleared before calling the
+	 * msmsdcc_runtime_suspend().
+	 */
+	if (!pm_runtime_suspended(dev) && !host->pending_resume)
 		rc = msmsdcc_runtime_suspend(dev);
+
+	/* This flag must not be set if system is entering into suspend */
+	host->pending_resume = false;
 
 	return rc;
 }
@@ -6008,6 +6209,7 @@ static int msmsdcc_pm_resume(struct device *dev)
 	struct msmsdcc_host *host = mmc_priv(mmc);
 	int rc = 0;
 
+	msm_sdcc_suspend_state = 0;
 	if (host->plat->is_sdio_al_client)
 		return 0;
 

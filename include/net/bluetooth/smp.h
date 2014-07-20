@@ -19,7 +19,9 @@
    COPYRIGHTS, TRADEMARKS OR OTHER RIGHTS, RELATING TO USE OF THIS
    SOFTWARE IS DISCLAIMED.
 */
-
+#ifdef CONFIG_BT_MGMT
+#include "smp_mgmt.h"
+#else
 #ifndef __SMP_H
 #define __SMP_H
 
@@ -127,5 +129,6 @@ int smp_conn_security(struct l2cap_conn *conn, __u8 sec_level);
 int smp_sig_channel(struct l2cap_conn *conn, struct sk_buff *skb);
 int smp_link_encrypt_cmplt(struct l2cap_conn *conn, __u8 status, __u8 encrypt);
 void smp_timeout(unsigned long l2cap_conn);
-
 #endif /* __SMP_H */
+
+#endif /* BT_MGMT */

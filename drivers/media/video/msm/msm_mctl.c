@@ -356,7 +356,9 @@ static int msm_mctl_cmd(struct msm_cam_media_controller *p_mctl,
 		break;
 	}
 
-	case MSM_CAM_IOCTL_FLASH_CTRL: {
+	case MSM_CAM_IOCTL_FLASH_CTRL: 
+	/*
+	{
 		struct flash_ctrl_data flash_info;
 		if (copy_from_user(&flash_info, argp, sizeof(flash_info))) {
 			ERR_COPY_FROM_USER();
@@ -366,6 +368,7 @@ static int msm_mctl_cmd(struct msm_cam_media_controller *p_mctl,
 		}
 		break;
 	}
+	*/ //Don't use qcom flash
 	case MSM_CAM_IOCTL_PICT_PP:
 		rc = msm_mctl_set_pp_key(p_mctl, (void __user *)arg);
 		break;

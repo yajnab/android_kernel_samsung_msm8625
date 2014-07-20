@@ -27,10 +27,14 @@
 #include <asm/mach-types.h>
 #include <mach/rpc_server_handset.h>
 #include <mach/pmic.h>
-
+#include <mach/socinfo.h>
 #include "devices.h"
+#include <linux/input/synaptics_dsx.h>
+
 #include "board-msm7627a.h"
 #include "devices-msm7x2xa.h"
+
+#if 0
 
 #define ATMEL_TS_I2C_NAME "maXTouch"
 #define ATMEL_X_OFFSET 13
@@ -41,6 +45,7 @@ defined(CONFIG_TOUCHSCREEN_SYNAPTICS_RMI4_I2C_MODULE)
 
 #ifndef CLEARPAD3000_ATTEN_GPIO
 #define CLEARPAD3000_ATTEN_GPIO (48)
+#define CLEARPAD3000_ATTEN_GPIO_EVBD_PLUS (115)
 #endif
 
 #ifndef CLEARPAD3000_RESET_GPIO
@@ -49,6 +54,35 @@ defined(CONFIG_TOUCHSCREEN_SYNAPTICS_RMI4_I2C_MODULE)
 
 #define KP_INDEX(row, col) ((row)*ARRAY_SIZE(kp_col_gpios) + (col))
 
+/******************** SYNAPTICS *********************************/
+
+/*	Synaptics Thin Driver	*/
+
+#define CLEARPAD3000_ADDR 0x20
+
+static unsigned char synaptic_rmi4_button_codes[] = {KEY_MENU, KEY_HOME,
+							KEY_BACK};
+
+static struct synaptics_rmi4_capacitance_button_map synaptic_rmi4_button_map = {
+	.nbuttons = ARRAY_SIZE(synaptic_rmi4_button_codes),
+	.map = synaptic_rmi4_button_codes,
+};
+
+static struct synaptics_rmi4_platform_data rmi4_platformdata = {
+	.irq_flags = IRQF_TRIGGER_FALLING,
+	.irq_gpio = CLEARPAD3000_ATTEN_GPIO_EVBD_PLUS,
+	.capacitance_button_map = &synaptic_rmi4_button_map,
+};
+
+static struct i2c_board_info rmi4_i2c_devices[] = {
+	{
+		I2C_BOARD_INFO("synaptics_rmi4_i2c",
+			CLEARPAD3000_ADDR),
+		.platform_data = &rmi4_platformdata,
+	},
+};
+
+/******************** SYNAPTICS *********************************/
 static unsigned int kp_row_gpios[] = {31, 32, 33, 34, 35};
 static unsigned int kp_col_gpios[] = {36, 37, 38, 39, 40};
 
@@ -291,7 +325,7 @@ static const u8 mxt_config_data_evt[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0,
 	/* T40 Object */
-	0, 0, 0, 0, 0,
+	17, 0, 0, 30, 30,
 	/* T42 Object */
 	3, 20, 45, 40, 128, 0, 0, 0,
 	/* T46 Object */
@@ -607,6 +641,10 @@ static struct platform_device hs_pdev = {
 #define FT5X06_IRQ_GPIO		48
 #define FT5X06_RESET_GPIO	26
 
+#define FT5X16_IRQ_GPIO		122
+#define FT5X16_IRQ_GPIO_EVBD	115
+#define FT5X16_IRQ_GPIO_SKUD	121
+
 static ssize_t
 ft5x06_virtual_keys_register(struct kobject *kobj,
 			     struct kobj_attribute *attr,
@@ -617,6 +655,17 @@ ft5x06_virtual_keys_register(struct kobject *kobj,
 	":" __stringify(EV_KEY) ":" __stringify(KEY_HOME)   ":120:510:80:60"
 	":" __stringify(EV_KEY) ":" __stringify(KEY_SEARCH) ":200:510:80:60"
 	":" __stringify(EV_KEY) ":" __stringify(KEY_BACK)   ":280:510:80:60"
+	"\n");
+}
+
+static ssize_t ft5x16_virtual_keys_register(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return snprintf(buf, 200, \
+	__stringify(EV_KEY) ":" __stringify(KEY_HOME) ":68:992:135:64" \
+	":" __stringify(EV_KEY) ":" __stringify(KEY_MENU) ":203:992:135:64" \
+	":" __stringify(EV_KEY) ":" __stringify(KEY_BACK) ":338:992:135:64" \
+	":" __stringify(EV_KEY) ":" __stringify(KEY_SEARCH) ":473:992:135:64" \
 	"\n");
 }
 
@@ -658,13 +707,47 @@ static struct i2c_board_info ft5x06_device_info[] __initdata = {
 static void __init ft5x06_touchpad_setup(void)
 {
 	int rc;
+	int irq_gpio;
 
-	rc = gpio_tlmm_config(GPIO_CFG(FT5X06_IRQ_GPIO, 0,
+	if (machine_is_qrd_skud_prime()) {
+		irq_gpio = FT5X16_IRQ_GPIO;
+
+		ft5x06_platformdata.x_max = 540;
+		ft5x06_platformdata.y_max = 960;
+		ft5x06_platformdata.irq_gpio = FT5X16_IRQ_GPIO;
+
+		ft5x06_device_info[0].irq = MSM_GPIO_TO_INT(FT5X16_IRQ_GPIO);
+
+		ft5x06_virtual_keys_attr.show = &ft5x16_virtual_keys_register;
+	} else if(machine_is_msm8625q_evbd()) {
+		irq_gpio = FT5X16_IRQ_GPIO_EVBD;
+
+		ft5x06_platformdata.x_max = 540;
+		ft5x06_platformdata.y_max = 960;
+		ft5x06_platformdata.irq_gpio = FT5X16_IRQ_GPIO_EVBD;
+
+		ft5x06_device_info[0].irq = MSM_GPIO_TO_INT(FT5X16_IRQ_GPIO_EVBD);
+
+		ft5x06_virtual_keys_attr.show = &ft5x16_virtual_keys_register;
+	} else if(machine_is_msm8625q_skud()) {
+		irq_gpio = FT5X16_IRQ_GPIO_SKUD;
+
+		ft5x06_platformdata.x_max = 540;
+		ft5x06_platformdata.y_max = 960;
+		ft5x06_platformdata.irq_gpio = FT5X16_IRQ_GPIO_SKUD;
+
+		ft5x06_device_info[0].irq = MSM_GPIO_TO_INT(FT5X16_IRQ_GPIO_SKUD);
+
+		ft5x06_virtual_keys_attr.show = &ft5x16_virtual_keys_register;
+	} else
+		irq_gpio = FT5X06_IRQ_GPIO;
+
+	rc = gpio_tlmm_config(GPIO_CFG(irq_gpio, 0,
 			GPIO_CFG_INPUT, GPIO_CFG_PULL_UP,
 			GPIO_CFG_8MA), GPIO_CFG_ENABLE);
 	if (rc)
 		pr_err("%s: gpio_tlmm_config for %d failed\n",
-			__func__, FT5X06_IRQ_GPIO);
+			__func__, irq_gpio);
 
 	rc = gpio_tlmm_config(GPIO_CFG(FT5X06_RESET_GPIO, 0,
 			GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN,
@@ -698,6 +781,18 @@ static const unsigned short keymap_sku3[] = {
 	[KP_INDEX_SKU3(0, 1)] = KEY_VOLUMEDOWN,
 	[KP_INDEX_SKU3(1, 1)] = KEY_CAMERA,
 };
+
+static unsigned int kp_row_gpios_skud[] = {31, 32};
+static unsigned int kp_col_gpios_skud[] = {37};
+
+static unsigned int kp_row_gpios_evbdp[] = {42, 37};
+static unsigned int kp_col_gpios_evbdp[] = {31};
+
+static const unsigned short keymap_skud[] = {
+	[KP_INDEX_SKU3(0, 0)] = KEY_VOLUMEUP,
+	[KP_INDEX_SKU3(0, 1)] = KEY_VOLUMEDOWN,
+};
+
 
 static struct gpio_event_matrix_info kp_matrix_info_sku3 = {
 	.info.func      = gpio_event_matrix_func,
@@ -771,8 +866,11 @@ static struct platform_device tricolor_leds_pdev = {
 	},
 };
 
+#endif
+
 void __init msm7627a_add_io_devices(void)
 {
+#if 0 //ARUBA Temp
 	/* touchscreen */
 	if (machine_is_msm7625a_surf() || machine_is_msm7625a_ffa()) {
 		atmel_ts_pdata.min_x = 0;
@@ -803,10 +901,12 @@ void __init msm7627a_add_io_devices(void)
 	if (machine_is_msm7x27a_ffa() || machine_is_msm7625a_ffa()
 					|| machine_is_msm8625_ffa())
 		msm_init_pmic_vibrator();
+#endif
 }
 
 void __init qrd7627a_add_io_devices(void)
 {
+#if 0
 	int rc;
 
 	/* touchscreen */
@@ -845,11 +945,39 @@ void __init qrd7627a_add_io_devices(void)
 		i2c_register_board_info(MSM_GSBI1_QUP_I2C_BUS_ID,
 					mxt_device_info,
 					ARRAY_SIZE(mxt_device_info));
-	} else if (machine_is_msm7627a_qrd3() || machine_is_msm8625_qrd7()) {
+	} else if (machine_is_msm7627a_qrd3() || machine_is_msm8625_qrd7()
+				|| machine_is_qrd_skud_prime()
+				|| machine_is_msm8625q_skud()
+				|| machine_is_msm8625q_evbd()) {
 		ft5x06_touchpad_setup();
+		/* evbd+ can support synaptic as well */
+		if (machine_is_msm8625q_evbd() &&
+			(socinfo_get_platform_type() == 0x13)) {
+			/* for QPR EVBD+ with synaptic touch panel */
+			/* TODO: Add  gpio request to the driver
+				to support proper dynamic touch detection */
+			gpio_tlmm_config(
+				GPIO_CFG(CLEARPAD3000_ATTEN_GPIO_EVBD_PLUS, 0,
+				GPIO_CFG_INPUT, GPIO_CFG_NO_PULL,
+				GPIO_CFG_8MA), GPIO_CFG_ENABLE);
+
+			gpio_tlmm_config(
+				GPIO_CFG(CLEARPAD3000_RESET_GPIO, 0,
+				GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN,
+				GPIO_CFG_8MA), GPIO_CFG_ENABLE);
+
+			gpio_set_value(CLEARPAD3000_RESET_GPIO, 0);
+			usleep(10000);
+			gpio_set_value(CLEARPAD3000_RESET_GPIO, 1);
+			usleep(50000);
+
+			i2c_register_board_info(MSM_GSBI1_QUP_I2C_BUS_ID,
+				rmi4_i2c_devices,
+				ARRAY_SIZE(rmi4_i2c_devices));
+		}
 	}
 
-	/* headset and power key*/
+	/* handset and power key*/
 	/* ignore end key as this target doesn't need it */
 	hs_platform_data.ignore_end_key = true;
 	platform_device_register(&hs_pdev);
@@ -860,19 +988,59 @@ void __init qrd7627a_add_io_devices(void)
 #endif
 
 	/* keypad */
+
+	if (machine_is_qrd_skud_prime() || machine_is_msm8625q_evbd()
+		|| machine_is_msm8625q_skud()) {
+		kp_matrix_info_sku3.keymap = keymap_skud;
+		kp_matrix_info_sku3.output_gpios = kp_row_gpios_skud;
+		kp_matrix_info_sku3.input_gpios = kp_col_gpios_skud;
+		kp_matrix_info_sku3.noutputs = ARRAY_SIZE(kp_row_gpios_skud);
+		kp_matrix_info_sku3.ninputs = ARRAY_SIZE(kp_col_gpios_skud);
+		/* keypad info for EVBD+ */
+		if (machine_is_msm8625q_evbd() &&
+			(socinfo_get_platform_type() == 0x13)) {
+			gpio_tlmm_config(GPIO_CFG(37, 0,
+						GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN,
+						GPIO_CFG_8MA), GPIO_CFG_ENABLE);
+			gpio_tlmm_config(GPIO_CFG(42, 0,
+						GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN,
+						GPIO_CFG_8MA), GPIO_CFG_ENABLE);
+			gpio_tlmm_config(GPIO_CFG(31, 0,
+						GPIO_CFG_INPUT, GPIO_CFG_PULL_UP,
+						GPIO_CFG_8MA), GPIO_CFG_ENABLE);
+			kp_matrix_info_sku3.output_gpios = kp_row_gpios_evbdp;
+			kp_matrix_info_sku3.input_gpios = kp_col_gpios_evbdp;
+			kp_matrix_info_sku3.noutputs = ARRAY_SIZE(kp_row_gpios_evbdp);
+			kp_matrix_info_sku3.ninputs = ARRAY_SIZE(kp_col_gpios_evbdp);
+		}
+	}
+
 	if (machine_is_msm8625_evt())
 		kp_matrix_info_8625.keymap = keymap_8625_evt;
 
 	if (machine_is_msm7627a_evb() || machine_is_msm8625_evb() ||
 			machine_is_msm8625_evt())
 		platform_device_register(&kp_pdev_8625);
-	else if (machine_is_msm7627a_qrd3() || machine_is_msm8625_qrd7())
+	else if (machine_is_msm7627a_qrd3() || machine_is_msm8625_qrd7()
+		|| machine_is_qrd_skud_prime() || machine_is_msm8625q_evbd()
+		|| machine_is_msm8625q_skud())
 		platform_device_register(&kp_pdev_sku3);
 
 	/* leds */
-	if (machine_is_msm7627a_evb() || machine_is_msm8625_evb() ||
-						machine_is_msm8625_evt()) {
-		platform_device_register(&pmic_mpp_leds_pdev);
-		platform_device_register(&tricolor_leds_pdev);
+
+	if (machine_is_qrd_skud_prime() || machine_is_msm8625q_evbd()
+		|| machine_is_msm8625q_skud()) {
+		ctp_backlight_info.flags =
+			PM_MPP__I_SINK__LEVEL_40mA << 16 | PM_MPP_8;
 	}
+
+	if (machine_is_msm7627a_evb() || machine_is_msm8625_evb() ||
+		machine_is_msm8625_evt() || machine_is_qrd_skud_prime()
+		|| machine_is_msm8625q_evbd() || machine_is_msm8625q_skud())
+		platform_device_register(&pmic_mpp_leds_pdev);
+
+	if (machine_is_msm7627a_evb() || machine_is_msm8625_evb() ||
+		machine_is_msm8625_evt() || machine_is_msm8625q_evbd())
+		platform_device_register(&tricolor_leds_pdev);
+#endif
 }

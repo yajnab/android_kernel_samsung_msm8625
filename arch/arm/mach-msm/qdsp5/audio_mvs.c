@@ -335,6 +335,8 @@ struct audio_mvs_info_type {
 
 	struct wake_lock suspend_lock;
 	struct pm_qos_request pm_qos_req;
+
+	struct completion complete;
 };
 
 static struct audio_mvs_info_type audio_mvs_info;
@@ -926,7 +928,8 @@ static void audio_mvs_process_rpc_request(uint32_t procedure,
 
 				MM_DBG("UL AMR frame_type %d\n",
 					 be32_to_cpu(*args));
-			} else if (frame_mode == MVS_FRAME_MODE_PCM_UL) {
+			} else if ((frame_mode == MVS_FRAME_MODE_PCM_UL) ||
+				   (frame_mode == MVS_FRAME_MODE_PCM_WB_UL)) {
 				/* PCM doesn't have frame_type */
 				buf_node->frame.frame_type = 0;
 			} else if (frame_mode == MVS_FRAME_MODE_VOC_TX) {
@@ -1053,7 +1056,8 @@ static void audio_mvs_process_rpc_request(uint32_t procedure,
 							cpu_to_be32(0x00000001);
 				dl_reply.cdc_param.gnr_arg.pkt_status =
 					cpu_to_be32(AUDIO_MVS_PKT_NORMAL);
-			} else if (frame_mode == MVS_FRAME_MODE_PCM_DL) {
+			} else if ((frame_mode == MVS_FRAME_MODE_PCM_DL) ||
+				(frame_mode == MVS_FRAME_MODE_PCM_WB_DL)) {
 				dl_reply.cdc_param.gnr_arg.param1 = 0;
 				dl_reply.cdc_param.gnr_arg.param2 = 0;
 				dl_reply.cdc_param.\
@@ -1236,6 +1240,7 @@ static int audio_mvs_thread(void *data)
 		rpc_hdr = NULL;
 	}
 
+	complete_and_exit(&audio->complete, 0);
 	MM_DBG("MVS thread stopped\n");
 
 	return 0;
@@ -1360,6 +1365,7 @@ static int audio_mvs_release(struct inode *inode, struct file *file)
 		audio_mvs_stop(audio);
 	audio->state = AUDIO_MVS_CLOSED;
 	msm_rpc_read_wakeup(audio->rpc_endpt);
+	wait_for_completion(&audio->complete);
 	msm_rpc_close(audio->rpc_endpt);
 	audio->task = NULL;
 	audio_mvs_free_buf(audio);
@@ -1613,6 +1619,19 @@ static int audio_mvs_open(struct inode *inode, struct file *file)
 
 	MM_DBG("\n");
 
+	mutex_lock(&audio_mvs_info.lock);
+
+	if (audio_mvs_info.state != AUDIO_MVS_CLOSED) {
+		MM_ERR("MVS driver exists, state %d\n",
+				audio_mvs_info.state);
+
+		rc = -EBUSY;
+		mutex_unlock(&audio_mvs_info.lock);
+		goto done;
+	}
+
+	mutex_unlock(&audio_mvs_info.lock);
+
 	audio_mvs_info.rpc_endpt = msm_rpc_connect_compatible(MVS_PROG,
 					MVS_VERS_COMP_VER2,
 					MSM_RPC_UNINTERRUPTIBLE);
@@ -1652,8 +1671,6 @@ static int audio_mvs_open(struct inode *inode, struct file *file)
 
 	mutex_lock(&audio_mvs_info.lock);
 
-	if (audio_mvs_info.state == AUDIO_MVS_CLOSED) {
-
 		if (audio_mvs_info.task != NULL ||
 			audio_mvs_info.rpc_endpt != NULL) {
 			rc = audio_mvs_alloc_buf(&audio_mvs_info);
@@ -1667,12 +1684,6 @@ static int audio_mvs_open(struct inode *inode, struct file *file)
 
 			rc = -ENODEV;
 		}
-	} else {
-		MM_ERR("MVS driver exists, state %d\n",
-		       audio_mvs_info.state);
-
-		rc = -EBUSY;
-	}
 
 	mutex_unlock(&audio_mvs_info.lock);
 
@@ -1711,6 +1722,8 @@ static int __init audio_mvs_init(void)
 	INIT_LIST_HEAD(&audio_mvs_info.out_queue);
 	INIT_LIST_HEAD(&audio_mvs_info.free_out_queue);
 
+	init_completion(&audio_mvs_info.complete);
+
 	wake_lock_init(&audio_mvs_info.suspend_lock,
 		       WAKE_LOCK_SUSPEND,
 		       "audio_mvs_suspend");
@@ -1720,10 +1733,19 @@ static int __init audio_mvs_init(void)
 	return misc_register(&audio_mvs_misc);
 }
 
+/*
+*    Qualcomm patch - 2013/01/14
+*    Not releasing wake_lock resource will have presence in the
+*    list maintained by wake_lock driver. While exiting this module,
+*    we are going to free these structures from memory which will
+*    corrupt the list and hence crash. So, release the resources
+*    when done, before exiting.
+*/
 static void __exit audio_mvs_exit(void)
 {
 	MM_DBG("\n");
 
+	wake_lock_destroy(&audio_mvs_info.suspend_lock);
 	misc_deregister(&audio_mvs_misc);
 }
 

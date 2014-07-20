@@ -17,6 +17,8 @@
 void __init msm7627a_init_mmc(void);
 
 void __init msm_msm7627a_allocate_memory_regions(void);
+void mipi_kyle_gpio_init(void);
+void __init msm_lcd_add_devices(void);
 void __init msm_fb_add_devices(void);
 
 enum {

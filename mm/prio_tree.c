@@ -189,12 +189,15 @@ struct vm_area_struct *vma_prio_tree_next(struct vm_area_struct *vma,
 			return next;
 		}
 	} else {
+              if (vma->shared.vm_set.list.next) { //ALRAN
 		next = list_entry(vma->shared.vm_set.list.next,
 				struct vm_area_struct, shared.vm_set.list);
 		if (!next->shared.vm_set.head) {
 			prefetch(next->shared.vm_set.list.next);
 			return next;
 		}
+              } else //ALRAN
+                      return NULL;
 	}
 
 	ptr = prio_tree_next(iter);

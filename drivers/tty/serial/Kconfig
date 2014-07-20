@@ -1004,6 +1004,12 @@ config SERIAL_MSM_RX_WAKEUP
 	 Requires SERIAL_MSM_CLOCK_CONTROL. Wake up the uart while the uart
 	 clock is off, using a wakeup GPIO.
 
+config SERIAL_MSM_UART_WAKEUP_BY_GPIO
+	bool "serial_msm_uart_wakeup_by_gpio"
+	default n
+	help
+	  Select this module to enable UART wake up by gpio in sleepstate.
+
 config SERIAL_MSM_HSL
 	tristate "MSM UART High Speed : Legacy mode Serial Driver"
 	depends on ARM && ARCH_MSM

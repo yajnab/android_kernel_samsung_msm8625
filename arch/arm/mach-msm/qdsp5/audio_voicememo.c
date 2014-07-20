@@ -934,6 +934,9 @@ static int audio_voicememo_probe(struct platform_device *pdev)
 
 	return misc_register(&audio_voicememo_misc);
 err:
+	mutex_destroy(&the_audio_voicememo.lock);
+	mutex_destroy(&the_audio_voicememo.read_lock);
+	mutex_destroy(&the_audio_voicememo.dsp_lock);	
 	dma_free_coherent(NULL, MAX_VOICEMEMO_BUF_SIZE,
 		the_audio_voicememo.rec_buf_ptr,
 		the_audio_voicememo.phys);

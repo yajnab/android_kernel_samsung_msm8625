@@ -217,7 +217,13 @@
 #define MSM_MMC_CLK_GATE_DELAY	200 /* msecs */
 
 /* Set the request timeout to 10secs */
+#ifdef CONFIG_MACH_DELOS_CTC  //Qualcomm SR01107883
+#define MSM_MMC_REQ_TIMEOUT	30000 /* msecs */
+#else
 #define MSM_MMC_REQ_TIMEOUT	10000 /* msecs */
+#endif
+
+extern struct class *sec_class; /* Sysfs about SD Card Detection */
 
 /*
  * Controller HW limitations

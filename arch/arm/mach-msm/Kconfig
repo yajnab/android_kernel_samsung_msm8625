@@ -298,7 +298,6 @@ config ARCH_MSM8625
 	select ARM_GIC
 	select ARCH_MSM_CORTEXMP
 	select MULTI_IRQ_HANDLER
-	select ARM_TICKET_LOCKS
 	select MSM_RUN_QUEUE_STATS
 	select MIGHT_HAVE_CACHE_L2X0
 	select ARM_HAS_SG_CHAIN
@@ -488,6 +487,204 @@ config MACH_MSM7X27A_FFA
         help
           Support for the Qualcomm MSM7x27A FFA.
 
+config MACH_TREBON
+        depends on ARCH_MSM8625
+        depends on !MSM_STACKED_MEMORY
+        default n
+        bool "MSM7x27A TREBON"
+        help
+          Support for the Qualcomm TREBON       
+
+config MACH_AMAZING_CTC
+        depends on MACH_TREBON
+        default n
+        bool "MSM7x27A AMAZING CTC"
+        help
+          Support for the Qualcomm AMAZING CTC
+
+config MACH_VASTO_CTC
+        depends on MACH_TREBON
+        default n
+        bool "MSM7x27A VASTO CTC"
+        help
+          Support for the Qualcomm VASTO CTC
+
+config MACH_ARUBA_CTC
+        depends on ARCH_MSM8625
+        default n
+        bool "MSM8x25 ARUBA CTC"
+        help
+          Support for the Qualcomm ARUBA CTC
+          
+config MACH_KYLEPLUS_CTC
+        depends on ARCH_MSM8625
+        default n
+        bool "MSM8x25 KYLEPLUS_CTC"
+        help
+          Support for the Qualcomm KYLEPLUS_CTC
+
+config MACH_KYLEPLUS_CTC_HWREV
+        hex "MSM8x25A KYLEPLUS CTC HWREV"
+		depends on MACH_KYLEPLUS_CTC
+		default "0x0"
+		help
+          Qualcomm KylePlus_CTC H/W revision.
+
+config MACH_ARUBA_DUOS_CTC
+        depends on ARCH_MSM8625
+        default n
+        bool "MSM8x25 ARUBA DUOS CTC"
+        help
+          Support for the Qualcomm ARUBA DUOS CTC
+
+config MACH_BAFFIN_DUOS_CTC
+        depends on ARCH_MSM8625
+        default n
+        bool "MSM8x25 BAFFIN DUOS CTC"
+        help
+          Support for the Qualcomm BAFFIN DUOS CTC
+          
+config MACH_KYLE_DUOS_CTC
+        depends on ARCH_MSM8625
+        default n
+        bool "MSM8x25 KYLE DUOS CTC"
+        help
+          Support for the Qualcomm KYLE DUOS CTC
+
+config MACH_INFINITE_DUOS_CTC
+        depends on ARCH_MSM8625
+        default n
+        bool "MSM8x25 INFINITE DUOS CTC"
+        help
+          Support for the Qualcomm INFINITE DUOS CTC
+
+config MACH_DELOS_OPEN
+        depends on ARCH_MSM8625
+        default n
+        bool "MSM8x25 DELOS OPEN"
+        help
+          Support for the Qualcomm DELOS OPEN
+
+config MACH_DELOS_CMCC
+        depends on ARCH_MSM8625
+        default n
+        bool "MSM8x25 DELOS CMCC"
+        help
+          Support for the Qualcomm DELOS CMCC
+
+config MACH_DELOS_CTC
+        depends on ARCH_MSM8625
+        default n
+        bool "MSM8x25 DELOS CTC"
+        help
+          Support for the Qualcomm DELOS CTC
+
+config MACH_DELOS_DUOS_CTC
+        depends on ARCH_MSM8625
+        default n
+        bool "MSM8x25 DELOS DUOS CTC"
+        help
+          Support for the Qualcomm DELOS DUOS CTC
+
+config MACH_HENNESSY_DUOS_CTC
+        depends on ARCH_MSM8625
+        default n
+        bool "MSM8x25 HENNESSY DUOS CTC"
+        help
+          Support for the Qualcomm HENNESSY DUOS CTC
+
+config MACH_KYLEPLUS_OPEN
+        depends on ARCH_MSM8625
+        default n
+        bool "MSM8x25 KYLEPLUS OPEN"
+        help
+          Support for the Qualcomm KYLEPLUS OPEN
+
+config MACH_ARUBA_OPEN
+        depends on ARCH_MSM8625
+        default n
+        bool "MSM8x25 ARUBA OPEN"
+        help
+          Support for the Qualcomm ARUBA OPEN
+
+config MACH_ARUBA_OPEN_CHN
+        depends on ARCH_MSM8625
+        default n
+        bool "MSM8x25 ARUBA OPEN CHN"
+        help
+          Support for the Qualcomm ARUBA OPEN
+
+config MACH_ARUBASLIM_OPEN
+        depends on ARCH_MSM8625
+        default n
+        bool "MSM8x25 ARUBASLIM OPEN"
+        help
+          Support for the Qualcomm ARUBASLIM OPEN           
+
+config MACH_ROY
+        depends on ARCH_MSM7X27A
+        default n
+        bool "MSM7x27A ROY"
+        help
+          Support for the Qualcomm ROY          
+
+config MACH_ROY_DTV
+        depends on ARCH_MSM7X27A
+        default n
+        bool "MSM7x27A ROY DTV"
+        help
+          Support for the Qualcomm ROY DTV         
+
+config MACH_ROY_DTV_HWREV
+        hex "MSM7x27A ROY DTV HWREV"
+		depends on MACH_ROY_DTV
+		default "0x0"
+		help
+          Qualcomm ROY DTV H/W revision.      
+
+config SERIAL_MSM_UART_WAKEUP_BY_GPIO
+	bool "serial_msm_uart_wakeup_by_gpio"
+	default n
+
+config MACH_NEVIS3G
+        depends on ARCH_MSM7X27A
+        default n
+        bool "MSM7x27A NEVIS3G"
+        help
+          Support for the Qualcomm NEVIS3G
+
+config MACH_NEVIS3G_REV03
+        depends on ARCH_MSM7X27A
+        default n
+        bool "MSM7x27A NEVIS3G"
+        help
+          Support for the Qualcomm NEVIS3G
+
+config MACH_ARUBASLIMQ_OPEN_CHN
+        depends on ARCH_MSM8625
+        default n
+        bool "MSM8x25 ARUBA SLIMQ OPEN CHN"
+        help
+          Support for the Qualcomm ARUBASLIMQ
+
+config SEC_DEBUG_SCHED_LOG
+        default n
+        bool "Scheduler Log"
+
+config SEC_DEBUG_IRQ_EXIT_LOG
+        depends on SEC_DEBUG_SCHED_LOG
+        default n
+        bool "IRQ Log"
+
+config USB_CDFS_SUPPORT
+	bool "Auto install for cdfs"
+	default n
+
+config APPLY_GA_SOLUTION
+        default y
+        bool "MSM7x27A GetLog"
+	help
+
 config MACH_MSM7625A_SURF
         depends on ARCH_MSM7X27A
         depends on !MSM_STACKED_MEMORY
@@ -575,6 +772,42 @@ config MACH_MSM8625_EVT
 	bool "MSM8625 EVT"
 	help
 	  Support for the Qualcomm MSM8625 Reference Design.
+
+config MACH_QRD_SKUD_PRIME
+	depends on ARCH_MSM8625
+	depends on !MSM_STACKED_MEMORY
+	default y
+	bool "MSM8625 SKUD PRIME"
+	help
+	  Support for the Qualcomm MSM8625 SKUD prime Reference Design.
+	  Add support for a SKUD prime reference design based on MSM8x25
+	  chipset. This device is much closer to a phone than regular form
+	  factor devices, with new touch, display panel and other hardware
+	  configurations.
+
+config MACH_MSM8625Q_EVBD
+	depends on ARCH_MSM8625
+	depends on !MSM_STACKED_MEMORY
+	default y
+	bool "MSM8625Q EVBD"
+	help
+	  Support for the Qualcomm MSM8625Q EVBD Reference Design.
+	  Add support for a EVBD reference design based on MSM8x25Q
+	  chipset. This device is much closer to a phone than regular form
+	  factor devices, with new touch, display panel and other hardware
+	  configurations.
+
+config MACH_MSM8625Q_SKUD
+	depends on ARCH_MSM8625
+	depends on !MSM_STACKED_MEMORY
+	default y
+	bool "MSM8625Q SKUD"
+	help
+	  Support for the Qualcomm MSM8625Q SKUD Reference Design.
+	  Add support for a SKUD reference design based on MSM8x25Q
+	  chipset. This device is much closer to a phone than regular form
+	  factor devices, with new touch, display panel and other hardware
+	  configurations.
 
 config MACH_MSM7X30_SURF
        depends on ARCH_MSM7X30
@@ -875,6 +1108,41 @@ config MACH_FSM9XXX_SURF
 	  FFA board.
 
 endmenu
+
+config MACH_TREBON_HWREV
+        hex "MSM7x27A TREBON HWREV"
+		depends on MACH_TREBON
+		default "0x2"
+		help
+          Qualcomm TREBON H/W revision.
+
+config MACH_AMAZING_CTC_HWREV
+        hex "MSM7x27A AMAZING CTC HWREV"
+		depends on MACH_AMAZING_CTC
+		default "0x1"
+		help
+          Qualcomm TREBON H/W revision.
+          
+config MACH_CORI_CTC_HWREV
+        hex "MSM7x27A AMAZING CTC HWREV"
+		depends on MACH_AMAZING_CTC
+		default "0x0"
+		help
+          Qualcomm TREBON H/W revision.
+          
+config MACH_TORINO_CTC_HWREV
+        hex "MSM7x27A TORINO CTC HWREV"
+		depends on MACH_TORINO_CTC
+		default "0x0"
+		help
+          Qualcomm TORINO H/W revision.
+          
+config MACH_GEIM_HWREV
+        hex "MSM7x27A GEIM HWREV"
+		depends on MACH_GEIM
+		default "0x0"
+		help
+          Qualcomm GEIM H/W revision.
 
 config MSM_STACKED_MEMORY
 	bool "Stacked Memory"
@@ -1383,7 +1651,7 @@ config MSM_SMD_QMI
 config MSM_SMD_PKT
 	bool "SMD Packet Driver"
 	depends on MSM_SMD
-	default y
+	default n
 	help
 	  Provides a binary SMD non-muxed packet port interface.
 
@@ -1722,6 +1990,14 @@ config AUDIO_ENHANCED_AAC_PLUS
 	default y
 	help
 	  Provides Enhanced AAC+ decoding
+
+config KEYBOARD_WAKEUP
+	bool "Wakeup GPIO key for HOME key"
+	default n
+
+config TOUCHSCREEN_SYNAPTICS_S2200_I2C
+	bool "synaptics s2200 tsp ic"
+	default n
 
 config SURF_FFA_GPIO_KEYPAD
 	bool "MSM SURF/FFA GPIO keypad"
@@ -2179,6 +2455,15 @@ config MSM_SHOW_RESUME_IRQ
 		the resume loop unrolls. Say Y if you want to debug why the system
 		resumed.
 
+config BT_CSR_7820
+	bool "CSR Bluetooth"
+	
+config BT_MGMT
+	bool "Bluetooth Mgmt"
+	default n
+	help
+	  This is for bluetooth mgmt.
+	  
 config BT_MSM_PINTEST
 	tristate "MSM Bluetooth Pin Connectivity Test"
 	depends on ((ARCH_MSM8X60 || ARCH_MSM7X27A) && DEBUG_FS)
@@ -2248,21 +2533,27 @@ config MSM_ULTRASOUND
 	help
 	  Enable support for qdsp6/ultrasound.
 
-config MSM_RPC_VIBRATOR
-	bool "RPC based MSM Vibrator Support"
-	depends on MSM_ONCRPCROUTER
+config MSM_VIBRATOR
+	bool "Vibrator Support based on MSM"
 	help
-	  Enable the vibrator support on MSM over RPC. The vibrator
-	  is connected on the PMIC. Say Y if you want to enable this
+	  Enable the vibrator support. The vibrator
+	  is connected on the PMIC or GPIO. Say Y if you want to enable this
 	  feature.
 
-config PM8XXX_RPC_VIBRATOR
+config MSM_PMIC_VIBRATOR
 	bool "RPC based Vibrator on PM8xxx PMICs"
-	depends on MSM_RPC_VIBRATOR
+        default n
 	help
 	  Enable the vibrator support on MSM over RPC. The vibrator
 	  is connected on the PM8XXX PMIC. Say Y if you want to enable
 	  this feature.
+
+config GPIO_CONTROL_VIBRATOR
+	bool "Vibrator Support based on MSM"
+	help
+	  Enable the vibrator support. The vibrator
+	  is connected on the PMIC or GPIO. Say Y if you want to enable this
+	  feature.	  	  
 
 config MSM_SPM_V1
 	bool "Driver support for SPM Version 1"
@@ -2317,6 +2608,22 @@ config MSM_RTB_SEPARATE_CPUS
 	  for each cpu to log accesses. Selecting this option will log each cpu
 	  separately. This will guarantee that the last acesses for each cpu
 	  will be logged but there will be fewer entries per cpu
+config MACH_JENA
+        bool "JENA platform"
+		depends on ARCH_MSM7X27A
+        default n
+
+config JENA_UART_TEST
+        bool "JENA uart test"
+		depends on ARCH_MSM7X27A
+        default n
+
+        
+config SUPPORT_FLASHLESS_CP
+    bool "Support Flashless CP"
+    default n
+    help
+	  Feature for using flashless modem
 
 config MSM_EBI_ERP
 	bool "External Bus Interface (EBI) error reporting"
@@ -2465,6 +2772,30 @@ config MSM_HSIC_SYSMON_TEST
 	  can be read and written to send character data to the sysmon port of
 	  the modem over USB.
 
+config SEC_MODEM_AMAZING
+	bool "Amazing with msm7x25a"
+	depends on SEC_MODEM
+	select LINK_DEVICE_DPRAM
+	select UMTS_MODEM_MSM7x27
+
+config SEC_MODEM_TREBON
+	bool "Trebon with msm7x27a"
+	depends on SEC_MODEM
+	select LINK_DEVICE_DPRAM
+	select UMTS_MODEM_MSM7x27
+
+config SEC_MODEM_AMAZING_CDMA
+	bool "Amazing-cdma with msm7x25a"
+	depends on SEC_MODEM
+	select LINK_DEVICE_DPRAM
+	select UMTS_MODEM_MSM7x27
+
+config SEC_MODEM_ARUBA_CTC
+	bool "Aruba-CTC with msm8x25a"
+	depends on SEC_MODEM
+	select LINK_DEVICE_DPRAM
+	select UMTS_MODEM_MSM7x27
+
 config MSM_8X60_FUSION_GPIO_GLITCH
 	tristate "Mask unexpected glitch during boot up"
 	help
@@ -2481,4 +2812,45 @@ config MSM_FIQ
 	  if apps is not responding and holding lock with irqs disabled.
 	  Modem will then generate an raise a FIQ on this line before sending
 	  SMSM reset
+
+config SAMSUNG_ALLSOUND_MUTE
+	bool "Support ALL SOUND MUTE function"
+	default n
+	help
+	  Support ALL SOUND MUTE function during call in MSM7x27, when enable this menu,
+
+config DOGKEEPALIVE_LOG
+	bool "Dog keep alive log at RPC level"
+	default n
+
+config SEC_SINGLE_CORE
+	bool "Single core"
+	default n
+
+config SEC_LOG
+	default n
+	bool "Enable support for sec_log" if EMBEDDED
+	depends on PRINTK
+	help
+	  This option enables sec_log support. This provides combined
+	  log buffer for both bootloader and kernel. It also preserves
+	  previous content before reboot.
+
+config SEC_LOG_NONCACHED
+	default n
+	bool "Enable non cached kernel sec_log support" if EMBEDDED
+	depends on SEC_LOG
+	help
+	  This option enables sec_non_cached_klog support.  It can
+	  support non-cached kernel log in RAM dump and We don't need
+	  to concern cache flush status for analyzing sudden lockup
+	  issue.
+
+config SEC_LOG_LAST_KMSG
+	default n
+	bool "Enable /proc/last_kmsg support" if EMBEDDED
+	depends on SEC_LOG
+	help
+	  This option enables /proc/last_kmsg support.
+
 endif

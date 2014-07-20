@@ -101,6 +101,9 @@ static uint8_t msm_gic_irq_to_smsm[NR_IRQS] = {
 
 static uint16_t msm_bypassed_apps_irqs[] = {
 	MSM8625_INT_CPR_IRQ0,
+#if defined(CONFIG_SEC_MODEM) && defined(CONFIG_LINK_DEVICE_DPRAM)
+	MSM8625_INT_A9_M2A_3,
+#endif
 };
 
 /* Check IRQ falls into bypassed list are not */

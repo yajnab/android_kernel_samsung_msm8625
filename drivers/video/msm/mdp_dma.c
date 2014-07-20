@@ -495,7 +495,17 @@ void mdp_dma2_update(struct msm_fb_data_type *mfd)
 
 		if (need_wait)
 			wait_for_completion_killable(&mfd->dma->comp);
-
+#if defined (CONFIG_MACH_KYLEPLUS_CTC)
+		/* wait until Vsync finishes the current job */
+		if (first_vsync) {
+			if (!wait_for_completion_killable_timeout
+				(&vsync_cntrl.vsync_comp, HZ/10))
+				pr_err("Timedout DMA %s %d", __func__,
+									__LINE__);
+		} else {
+			first_vsync = 1;
+		}
+#endif
 		/* schedule DMA to start */
 		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
 		mfd->ibuf_flushed = TRUE;
@@ -519,7 +529,8 @@ void mdp_dma2_update(struct msm_fb_data_type *mfd)
 		/* schedule DMA to start */
 		mdp_dma_schedule(mfd, MDP_DMA2_TERM);
 		up(&mfd->sem);
-
+		
+#ifndef CONFIG_MACH_KYLEPLUS_CTC
 		/* wait until Vsync finishes the current job */
 		if (first_vsync) {
 			if (!wait_for_completion_killable_timeout
@@ -529,6 +540,7 @@ void mdp_dma2_update(struct msm_fb_data_type *mfd)
 		} else {
 			first_vsync = 1;
 		}
+#endif
 		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
 
 	/* signal if pan function is waiting for the update completion */

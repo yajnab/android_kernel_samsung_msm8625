@@ -1,7 +1,7 @@
 /* arch/arm/mach-msm/pm.h
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2009-2012, The Linux Foundation. All rights reserved.
  * Author: San Mehat <san@android.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -27,7 +27,7 @@ extern void msm_secondary_startup(void);
 #define msm_secondary_startup NULL
 #endif
 
-extern int power_collapsed;
+DECLARE_PER_CPU(int,  power_collapsed);
 
 struct msm_pm_irq_calls {
 	unsigned int (*irq_pending)(void);
@@ -87,7 +87,7 @@ struct msm_pm_sleep_ops {
 };
 
 struct msm_pm_cpr_ops {
-	void (*cpr_suspend)(void);
+	int (*cpr_suspend)(void);
 	void (*cpr_resume)(void);
 };
 
@@ -144,5 +144,8 @@ static inline void msm_pm_add_stat(enum msm_pm_time_stats_id id, int64_t t) {}
 #endif
 
 void msm_pm_set_cpr_ops(struct msm_pm_cpr_ops *ops);
+#if !defined(CONFIG_MACH_NEVIS3G) && !defined(CONFIG_MACH_NEVIS3G_REV03)
+extern void __iomem *virt_start_ptr;
+#endif
 
 #endif  /* __ARCH_ARM_MACH_MSM_PM_H */

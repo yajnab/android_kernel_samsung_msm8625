@@ -129,24 +129,24 @@ static inline void put_utf16(wchar_t *s, unsigned c, enum utf16_endian endian)
 	}
 }
 
-int utf8s_to_utf16s(const u8 *s, int inlen, enum utf16_endian endian,
-		wchar_t *pwcs, int maxout)
+int utf8s_to_utf16s(const u8 *s, int len, enum utf16_endian endian,
+		wchar_t *pwcs, int maxlen)
 {
 	u16 *op;
 	int size;
 	unicode_t u;
 
 	op = pwcs;
-	while (inlen > 0 && maxout > 0 && *s) {
+	while (len > 0 && maxlen > 0 && *s) {
 		if (*s & 0x80) {
-			size = utf8_to_utf32(s, inlen, &u);
+			size = utf8_to_utf32(s, len, &u);
 			if (size < 0)
 				return -EINVAL;
 			s += size;
-			inlen -= size;
+			len -= size;
 
 			if (u >= PLANE_SIZE) {
-				if (maxout < 2)
+				if (maxlen < 2)
 					break;
 				u -= PLANE_SIZE;
 				put_utf16(op++, SURROGATE_PAIR |
@@ -156,15 +156,15 @@ int utf8s_to_utf16s(const u8 *s, int inlen, enum utf16_endian endian,
 						SURROGATE_LOW |
 						(u & SURROGATE_BITS),
 						endian);
-				maxout -= 2;
+				maxlen -= 2;
 			} else {
 				put_utf16(op++, u, endian);
-				maxout--;
+				maxlen--;
 			}
 		} else {
 			put_utf16(op++, *s++, endian);
-			inlen--;
-			maxout--;
+			len--;
+			maxlen--;
 		}
 	}
 	return op - pwcs;

@@ -569,6 +569,14 @@ static int rpc_servers_thread(void *data)
 				RPC_ACCEPTSTAT_PROC_UNAVAIL);
 			msm_rpc_server_send_accepted_reply(server, 0);
 		}
+
+#if defined(CONFIG_DOGKEEPALIVE_LOG)
+        if( req1->prog == 0x30000015)
+	    {
+            printk(KERN_ERR "[DOG_KEEPALIVE] write xid : %x \n", current_xid);
+	    }
+#endif
+
  free_buffer:
 		xdr_clean_input(&server_xdr);
 		server_xdr.out_index = 0;

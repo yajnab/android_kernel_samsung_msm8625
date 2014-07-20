@@ -19,6 +19,11 @@ typedef u64 __nocast cputime64_t;
 #define nsecs_to_cputime64(__ct)	\
 	jiffies64_to_cputime64(nsecs_to_jiffies64(__ct))
 
+#define cputime64_zero (0ULL)
+#define cputime64_add(__a, __b)		((__a) + (__b))
+#define cputime64_sub(__a, __b)		((__a) - (__b))
+#define cputime_to_cputime64(__ct)	((u64) __ct)
+#define cputime64_gt(__a, __b)		((__a) >  (__b))
 
 /*
  * Convert cputime to microseconds and back.

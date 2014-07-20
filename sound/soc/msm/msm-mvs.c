@@ -926,9 +926,19 @@ static int __init msm_mvs_soc_platform_init(void)
 }
 module_init(msm_mvs_soc_platform_init);
 
+/*
+*    Qualcomm patch - 2013/01/14
+*    Not releasing wake_lock resource will have presence in the
+*    list maintained by wake_lock driver. While exiting this module,
+*    we are going to free these structures from memory which will
+*    corrupt the list and hence crash. So, release the resources
+*    when done, before exiting.
+*/
+
 static void __exit msm_mvs_soc_platform_exit(void)
 {
-	 platform_driver_unregister(&msm_pcm_driver);
+	wake_lock_destroy(&audio_mvs_info.suspend_lock);
+	platform_driver_unregister(&msm_pcm_driver);
 }
 module_exit(msm_mvs_soc_platform_exit);
 

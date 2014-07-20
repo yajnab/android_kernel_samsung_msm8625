@@ -20,6 +20,7 @@
 #include <linux/mutex.h>
 
 #include <mach/pmic.h>
+#include <linux/reboot.h>
 
 #include "smd_rpcrouter.h"
 
@@ -367,8 +368,24 @@ static int pmic_rpc_req_reply(struct pmic_buf *tbuf, struct pmic_buf *rbuf,
 				PMIC_RPC_TIMEOUT);
 
 	if (len <= 0) {
+		//work_around before QC patch
+		if(system_state == SYSTEM_RESTART) {
+			printk(KERN_ERR "%s: Try to Force Restart! \n", __func__);
+			machine_restart("Force_Restart");
+			printk(KERN_ERR "%s: Try to Force Restart Fail! \n", __func__);
+			return len;
+		}
+
 		printk(KERN_ERR "%s: rpc failed! len = %d\n", __func__, len);
-		pm->endpoint = NULL;	/* re-connect later ? */
+		// QC patch : Do not set endpoint variable to NULL
+		// The endpoint varaible is being set to NULL on recieving an error
+		// response in a RPC Call. Due to this RPC client tries to re-register
+		// with the server and causing a memory leak in SMEM. Hence do not set
+		// the Endpoint variable to null on an error response.
+		// 
+		// CRs-Fixed: 435094
+
+		// pm->endpoint = NULL;	/* re-connect later ? */
 		return len;
 	}
 

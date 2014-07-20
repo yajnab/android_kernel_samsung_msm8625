@@ -22,6 +22,8 @@
 #define SUPPORT_SYSRQ
 #endif
 
+#define UART_DEBUG
+
 #include <linux/atomic.h>
 #include <linux/hrtimer.h>
 #include <linux/module.h>
@@ -35,6 +37,7 @@
 #include <linux/tty_flip.h>
 #include <linux/serial_core.h>
 #include <linux/serial.h>
+#include <linux/wakelock.h>
 #include <linux/nmi.h>
 #include <linux/clk.h>
 #include <linux/platform_device.h>
@@ -47,6 +50,17 @@
 #include <mach/msm_serial_hs_lite.h>
 #include <asm/mach-types.h>
 #include "msm_serial_hs_hwreg.h"
+extern int uart_connecting;
+
+/* optional low power wakeup, typically on a GPIO RX irq */
+struct msm_hsl_wakeup {
+	int	irq;	/* < 0 indicates low power wakeup disabled */
+	int rx_gpio;	/*  MSM_RX_GPIO, generally 23 */
+	unsigned char ignore; /* bool */
+	unsigned int wakeup_set;
+	struct wake_lock wake_lock; /* Keep a wake lock */
+};
+
 
 struct msm_hsl_port {
 	struct uart_port	uart;
@@ -58,10 +72,11 @@ struct msm_hsl_port {
 	unsigned int		*uart_csr_code;
 	unsigned int            *gsbi_mapbase;
 	unsigned int            *mapped_gsbi;
-	int			is_uartdm;
-	unsigned int            old_snap_state;
-	unsigned int		ver_id;
-	int			tx_timeout;
+	int			 is_uartdm;
+	unsigned int		 old_snap_state;
+	unsigned int		 ver_id;
+	int			 tx_timeout;
+	struct msm_hsl_wakeup	 wakeup;
 };
 
 #define UARTDM_VERSION_11_13	0
@@ -70,6 +85,8 @@ struct msm_hsl_port {
 #define UART_TO_MSM(uart_port)	((struct msm_hsl_port *) uart_port)
 #define is_console(port)	((port)->cons && \
 				(port)->cons->index == (port)->line)
+
+static int clk_en_cnt = 0;
 
 static const unsigned int regmap[][UARTDM_LAST] = {
 	[UARTDM_VERSION_11_13] = {
@@ -162,8 +179,10 @@ static int clk_en(struct uart_port *port, int enable)
 	struct msm_hsl_port *msm_hsl_port = UART_TO_MSM(port);
 	int ret = 0;
 
+	pr_err("%s(): clk_en : %s enable : %d\n",	__func__, msm_hsl_port->name, enable);
+	
 	if (enable) {
-
+		if(clk_en_cnt == 0){
 		ret = clk_prepare_enable(msm_hsl_port->clk);
 		if (ret)
 			goto err;
@@ -174,15 +193,53 @@ static int clk_en(struct uart_port *port, int enable)
 				goto err;
 			}
 		}
+			clk_en_cnt++;
+		}
+		
 	} else {
-
+		if(clk_en_cnt == 1){
 		clk_disable_unprepare(msm_hsl_port->clk);
 		if (msm_hsl_port->pclk)
 			clk_disable_unprepare(msm_hsl_port->pclk);
+			clk_en_cnt--;
+		}
 	}
 err:
+	pr_err("%s():  ERR ! enable : %d, port 0x%x \n",
+						__func__, enable, (unsigned int)port); //13.1.30 daesu.jeong fix delos warning code - casting(unsigned int)
 	return ret;
 }
+
+
+/**
+   Function: wake up ISR
+   Purpose: Creates a self expiring wake_lock that will prevent system
+			from suspend.
+ */
+static irqreturn_t msm_hsl_wakeup_isr(int irq, void *dev)
+{
+    unsigned int wakeup = 0;
+    struct msm_hsl_port *msm_hsl_port = (struct msm_hsl_port *)dev;
+    const unsigned long WAKE_LOCK_EXPIRE_TIME = HZ;
+    printk(KERN_ERR "%s: msm_hsl_wakeup_isr\n", __func__);
+	
+    /* let it expire within 1 sec */
+
+
+	if (msm_hsl_port->wakeup.ignore)
+		msm_hsl_port->wakeup.ignore = 0;
+	else
+		wakeup = 1;
+
+	if (wakeup) {
+		/* let it self expire */
+		wake_lock_timeout(&msm_hsl_port->wakeup.wake_lock,
+					WAKE_LOCK_EXPIRE_TIME*3);
+	}
+
+	return IRQ_HANDLED;
+}
+
 static int msm_hsl_loopback_enable_set(void *data, u64 val)
 {
 	struct msm_hsl_port *msm_hsl_port = data;
@@ -365,9 +422,15 @@ static void handle_rx(struct uart_port *port, unsigned int misr)
 		tty_insert_flip_string(tty, (char *) &c,
 				       (count > 4) ? 4 : count);
 		count -= 4;
+//#ifdef UART_DEBUG
+//       		print_hex_dump_bytes("[UART_DEBUG]HS lite UART read: ", DUMP_PREFIX_OFFSET, &c, 4);			
+//#endif		
 	}
 
 	tty_flip_buffer_push(tty);
+
+	/* ignore pending wakeup irq */
+	msm_hsl_port->wakeup.ignore = 1;
 }
 
 static void handle_tx(struct uart_port *port)
@@ -386,7 +449,10 @@ static void handle_tx(struct uart_port *port)
 		tx_count = UART_XMIT_SIZE - xmit->tail;
 	if (tx_count >= port->fifosize)
 		tx_count = port->fifosize;
-
+#ifdef UART_DEBUG
+	if( (tx_count > 16) && (tx_count < 40) )
+         print_hex_dump_bytes("[UART_DEBUG]HS lite UART write: ", DUMP_PREFIX_OFFSET, &xmit->buf[xmit->tail], tx_count);
+#endif
 	/* Handle x_char */
 	if (port->x_char) {
 		wait_for_xmitr(port);
@@ -901,6 +967,13 @@ static void msm_hsl_release_port(struct uart_port *port)
 		iounmap(msm_hsl_port->mapped_gsbi);
 		msm_hsl_port->mapped_gsbi = NULL;
 	}
+
+	/* Free Wake UP IRQ */
+	if (msm_hsl_port->wakeup.irq > 0) {
+		free_irq(msm_hsl_port->wakeup.irq, msm_hsl_port);
+		msm_hsl_port->wakeup.irq = -1;
+	}
+
 }
 
 static int msm_hsl_request_port(struct uart_port *port)
@@ -948,9 +1021,8 @@ static int msm_hsl_request_port(struct uart_port *port)
 		size = gsbi_resource->end - gsbi_resource->start + 1;
 		msm_hsl_port->mapped_gsbi = ioremap(gsbi_resource->start,
 						    size);
-		if (!msm_hsl_port->mapped_gsbi) {
+		if (!msm_hsl_port->mapped_gsbi)
 			return -EBUSY;
-		}
 	}
 
 	return 0;
@@ -992,6 +1064,8 @@ static void msm_hsl_power(struct uart_port *port, unsigned int state,
 	int ret;
 	struct msm_hsl_port *msm_hsl_port = UART_TO_MSM(port);
 
+	pr_err("%s(): msm hsl port name : %s, state : %d\n",	__func__, msm_hsl_port->name, state);
+
 	switch (state) {
 	case 0:
 		ret = clk_set_rate(msm_hsl_port->clk, 7372800);
@@ -1001,11 +1075,11 @@ static void msm_hsl_power(struct uart_port *port, unsigned int state,
 		clk_en(port, 1);
 		break;
 	case 3:
-		clk_en(port, 0);
 		ret = clk_set_rate(msm_hsl_port->clk, 0);
+		clk_en(port, 0);
 		if (ret)
-			pr_err("%s(): Error setting UART clock rate to zero.\n",
-								__func__);
+			pr_err("%s(): Error setting UART clock rate to zero. %d\n",
+								__func__, ret);
 		break;
 	default:
 		pr_err("%s(): msm_serial_hsl: Unknown PM state %d\n",
@@ -1350,7 +1424,9 @@ static struct uart_driver msm_hsl_uart_driver = {
 };
 
 static atomic_t msm_serial_hsl_next_id = ATOMIC_INIT(0);
-
+#if defined(CONFIG_UES_APO_UART)
+extern unsigned int kernel_console_diable;
+#endif
 static int __devinit msm_serial_hsl_probe(struct platform_device *pdev)
 {
 	struct msm_hsl_port *msm_hsl_port;
@@ -1418,11 +1494,46 @@ static int __devinit msm_serial_hsl_probe(struct platform_device *pdev)
 		return -ENXIO;
 	}
 
+	/* Get wakup_irq resource if available */
+	msm_hsl_port->wakeup.irq = -1;
+	uart_resource = platform_get_resource_byname(pdev,
+					IORESOURCE_IO, "wakeup_gpio");
+	if (uart_resource) {
+		printk(KERN_INFO "%s: Found wakeup gpio %d\n",
+				__func__, uart_resource->start);
+		msm_hsl_port->wakeup.wakeup_set = 0;
+		msm_hsl_port->wakeup.rx_gpio = uart_resource->start;
+		msm_hsl_port->wakeup.irq = gpio_to_irq(uart_resource->start);
+
+		/* Create a wake_lock to prevent system from suspend */
+		wake_lock_init(&msm_hsl_port->wakeup.wake_lock,
+			WAKE_LOCK_SUSPEND, "msm_serial_hsl");
+
+#ifdef CONFIG_MACH_KYLEPLUS_CTC
+		ret = request_irq(msm_hsl_port->wakeup.irq, msm_hsl_wakeup_isr,
+			IRQF_TRIGGER_RISING, "msm_hsl_wakeup", msm_hsl_port);
+#else
+		ret = request_irq(msm_hsl_port->wakeup.irq, msm_hsl_wakeup_isr,
+			IRQF_TRIGGER_FALLING, "msm_hsl_wakeup", msm_hsl_port);
+#endif
+		if (unlikely(ret)) {
+			pr_err("%s: failed to request wakeup_irq\n", __func__);
+			return ret;
+		}
+
+		disable_irq(msm_hsl_port->wakeup.irq);
+
+	}
+
 	device_set_wakeup_capable(&pdev->dev, 1);
 	platform_set_drvdata(pdev, port);
 	pm_runtime_enable(port->dev);
 #ifdef CONFIG_SERIAL_MSM_HSL_CONSOLE
+#if defined(CONFIG_UES_APO_UART)
+	if(!kernel_console_diable)
+#endif			
 	ret = device_create_file(&pdev->dev, &dev_attr_console);
+
 	if (unlikely(ret))
 		pr_err("%s():Can't create console attribute\n", __func__);
 #endif
@@ -1467,7 +1578,10 @@ static int msm_serial_hsl_suspend(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct uart_port *port;
-	port = get_port_from_line(get_line(pdev));
+	struct msm_hsl_port *msm_hsl_port;
+
+	port = get_port_from_line(pdev->id);
+	msm_hsl_port = UART_TO_MSM(port);
 
 	if (port) {
 
@@ -1475,8 +1589,22 @@ static int msm_serial_hsl_suspend(struct device *dev)
 			msm_hsl_deinit_clock(port);
 
 		uart_suspend_port(&msm_hsl_uart_driver, port);
+
 		if (device_may_wakeup(dev))
 			enable_irq_wake(port->irq);
+
+		/* Enable wakeup_irq
+		 * wakeup_irq state :
+		 * 1. uart_connecting true : FSA9485 detect it
+		 * 2. UART_RX GPIO is high : h/w behavior
+		 * */
+		if (msm_hsl_port->wakeup.irq > 0) {
+			printk(KERN_ERR "%s enabling wakeup irq\n",
+							__func__);
+			enable_irq_wake(msm_hsl_port->wakeup.irq);
+			enable_irq(msm_hsl_port->wakeup.irq);
+			msm_hsl_port->wakeup.wakeup_set = 1;
+		}
 	}
 
 	return 0;
@@ -1486,16 +1614,35 @@ static int msm_serial_hsl_resume(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct uart_port *port;
-	port = get_port_from_line(get_line(pdev));
+	struct msm_hsl_port *msm_hsl_port;
+
+	port = get_port_from_line(pdev->id);
+	msm_hsl_port = UART_TO_MSM(port);
 
 	if (port) {
 
 		uart_resume_port(&msm_hsl_uart_driver, port);
+
 		if (device_may_wakeup(dev))
 			disable_irq_wake(port->irq);
 
 		if (is_console(port))
 			msm_hsl_init_clock(port);
+
+
+		if (uart_connecting || msm_hsl_port->wakeup.wakeup_set) {
+			/* disable wakeup_irq */
+			if (msm_hsl_port->wakeup.irq > 0) {
+				printk(KERN_ERR "%s disbling wakeup irq\n",
+								__func__);
+				if (!msm_hsl_port->wakeup.wakeup_set)
+					return 0;
+
+				disable_irq_wake(msm_hsl_port->wakeup.irq);
+				disable_irq(msm_hsl_port->wakeup.irq);
+			}
+		}
+
 	}
 
 	return 0;
@@ -1527,7 +1674,7 @@ static int msm_hsl_runtime_resume(struct device *dev)
 	return 0;
 }
 
-static struct dev_pm_ops msm_hsl_dev_pm_ops = {
+static const struct dev_pm_ops msm_hsl_dev_pm_ops = {
 	.suspend = msm_serial_hsl_suspend,
 	.resume = msm_serial_hsl_resume,
 	.runtime_suspend = msm_hsl_runtime_suspend,
@@ -1549,7 +1696,15 @@ static int __init msm_serial_hsl_init(void)
 {
 	int ret;
 
+#if defined(CONFIG_UES_APO_UART)
+	printk(KERN_INFO "msm_serial_hsl: kernel_console_diable %d \n", kernel_console_diable);
+
+	if(kernel_console_diable)
+		msm_hsl_uart_driver.cons = NULL;
+#endif
+
 	ret = uart_register_driver(&msm_hsl_uart_driver);
+	
 	if (unlikely(ret))
 		return ret;
 

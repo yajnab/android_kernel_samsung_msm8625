@@ -1311,7 +1311,13 @@ void mmc_power_up(struct mmc_host *host)
 	 * This delay should be sufficient to allow the power supply
 	 * to reach the minimum voltage.
 	 */
+
+	if(!strcmp(mmc_hostname(host), "mmc1"))	{
+		mmc_delay(15); 
+	}
+	else	{
 	mmc_delay(10);
+	}
 
 	host->ios.clock = host->f_init;
 
@@ -1322,7 +1328,12 @@ void mmc_power_up(struct mmc_host *host)
 	 * This delay must be at least 74 clock sizes, or 1 ms, or the
 	 * time required to reach a stable voltage.
 	 */
+	if(!strcmp(mmc_hostname(host), "mmc1"))	{
+		mmc_delay(15); 
+	}
+	else	{
 	mmc_delay(10);
+	}
 
 	mmc_host_clk_release(host);
 }
@@ -1813,6 +1824,16 @@ int mmc_erase(struct mmc_card *card, unsigned int from, unsigned int nr,
 	/* 'from' and 'to' are inclusive */
 	to -= 1;
 
+	/* to set the address in 16k (32sectors) */
+	if(arg == MMC_TRIM_ARG) {
+		if ((from % 32) != 0)
+			from = ((from >> 5) + 1) << 5;
+
+		to = (to >> 5) << 5;
+		if (from >= to)
+			return 0;
+	}
+
 	return mmc_do_erase(card, from, to, arg);
 }
 EXPORT_SYMBOL(mmc_erase);
@@ -1987,11 +2008,15 @@ int mmc_can_reset(struct mmc_card *card)
 {
 	u8 rst_n_function;
 
-	if (!mmc_card_mmc(card))
+	if (mmc_card_sdio(card))
 		return 0;
-	rst_n_function = card->ext_csd.rst_n_function;
-	if ((rst_n_function & EXT_CSD_RST_N_EN_MASK) != EXT_CSD_RST_N_ENABLED)
-		return 0;
+
+	if (mmc_card_mmc(card)) {
+               rst_n_function = card->ext_csd.rst_n_function;
+               if ((rst_n_function & EXT_CSD_RST_N_EN_MASK) !=
+                   EXT_CSD_RST_N_ENABLED)
+                       return 0;
+       }
 	return 1;
 }
 EXPORT_SYMBOL(mmc_can_reset);
@@ -2066,7 +2091,7 @@ static int mmc_rescan_try_freq(struct mmc_host *host, unsigned freq)
 {
 	host->f_init = freq;
 
-#ifdef CONFIG_MMC_DEBUG
+#if 1 //def CONFIG_MMC_DEBUG
 	pr_info("%s: %s: trying to init card at %u Hz\n",
 		mmc_hostname(host), __func__, host->f_init);
 #endif
@@ -2176,6 +2201,7 @@ void mmc_rescan(struct work_struct *work)
 		return;
 
 	mmc_bus_get(host);
+	printk(KERN_INFO "%s : %s(): start \n",mmc_hostname(host), __func__);
 
 	/*
 	 * if there is a _removable_ card registered, check whether it is
@@ -2235,6 +2261,7 @@ void mmc_rescan(struct work_struct *work)
 		wake_lock(&host->detect_wake_lock);
 		mmc_schedule_delayed_work(&host->detect, HZ);
 	}
+	printk(KERN_INFO "%s(): end \n", __func__);
 }
 
 void mmc_start_host(struct mmc_host *host)
@@ -2476,9 +2503,9 @@ int mmc_suspend_host(struct mmc_host *host)
 	if (mmc_bus_needs_resume(host))
 		return 0;
 
-	if (cancel_delayed_work(&host->detect))
+	if (cancel_delayed_work_sync(&host->detect))
 		wake_unlock(&host->detect_wake_lock);
-	mmc_flush_scheduled_work();
+	//mmc_flush_scheduled_work();
 	err = mmc_cache_ctrl(host, 0);
 	if (err)
 		goto out;
@@ -2649,7 +2676,14 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 		}
 		host->rescan_disable = 0;
 		spin_unlock_irqrestore(&host->lock, flags);
+#if 0 /* 20121004 Matt */
 		mmc_detect_change(host, 0);
+#else
+        if (host->card && host->card->type == MMC_TYPE_SDIO)
+            printk(KERN_INFO "%s(): WLAN SKIP DETECT CHANGE\n", __func__);
+        else
+            mmc_detect_change(host, 0);
+#endif
 
 	}
 

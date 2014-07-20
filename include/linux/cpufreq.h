@@ -345,6 +345,51 @@ static inline unsigned int cpufreq_quick_get_max(unsigned int cpu)
 }
 #endif
 
+#ifdef CONFIG_SEC_DVFS
+enum {
+	BOOT_CPU = 0,
+	NON_BOOT_CPU = 1
+};
+
+int get_max_freq(void);
+int get_min_freq(void);
+
+#define MAX_FREQ_LIMIT		get_max_freq()
+#define MIN_FREQ_LIMIT		get_min_freq()
+
+#if defined(CONFIG_MACH_ROY)
+#define MIN_TOUCH_LIMIT	700800
+#else
+#define MIN_TOUCH_LIMIT	480000
+#endif
+#define MAX_UNICPU_LIMIT	700800
+
+#define UPDATE_NOW_BITS		0xFF
+
+enum {
+	DVFS_NO_ID = 0,
+
+	/* need to update now */
+	DVFS_TOUCH_ID = 0x00000001,
+	DVFS_APPS_MIN_ID = 0x00000002,
+	DVFS_APPS_MAX_ID = 0x00000004,
+	DVFS_UNICPU_ID = 0x00000008,
+
+	/* DO NOT UPDATE NOW */
+	DVFS_THERMALD_ID = 0x00000100,
+
+	DVFS_MAX_ID
+};
+
+
+int set_freq_limit(unsigned long id, unsigned int freq);
+
+unsigned int get_min_lock(void);
+unsigned int get_max_lock(void);
+void set_min_lock(int freq);
+void set_max_lock(int freq);
+
+#endif
 
 /*********************************************************************
  *                       CPUFREQ DEFAULT GOVERNOR                    *

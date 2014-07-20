@@ -4726,7 +4726,7 @@ static __init int tracer_init_debugfs(void)
 	trace_create_file("free_buffer", 0644, d_tracer,
 			&global_trace, &tracing_free_buffer_fops);
 
-	trace_create_file("trace_marker", 0220, d_tracer,
+	trace_create_file("trace_marker", 0222, d_tracer,
 			NULL, &tracing_mark_fops);
 
 	trace_create_file("saved_cmdlines", 0444, d_tracer,

@@ -187,17 +187,25 @@ PCOM_VREG_CONSUMERS(ldo16) = {
 
 PCOM_VREG_CONSUMERS(ldo17) = {
 	REGULATOR_SUPPLY("ldo17",	NULL),
-	REGULATOR_SUPPLY("bt",		NULL),
+	REGULATOR_SUPPLY("wlan",	NULL),
 };
 
 PCOM_VREG_CONSUMERS(ldo18) = {
 	REGULATOR_SUPPLY("ldo18",	NULL),
+#if defined (CONFIG_MACH_DELOS_CTC) || defined(CONFIG_MACH_HENNESSY_DUOS_CTC)
+	REGULATOR_SUPPLY("vlcd",	NULL),
+#else
 	REGULATOR_SUPPLY("rftx",	NULL),
+#endif	
 };
 
 PCOM_VREG_CONSUMERS(ldo19) = {
 	REGULATOR_SUPPLY("ldo19",	NULL),
-	REGULATOR_SUPPLY("wlan4",	NULL),
+	REGULATOR_SUPPLY("vtsp",	NULL),
+#if defined(CONFIG_MACH_DELOS_OPEN) || defined(CONFIG_MACH_ARUBA_OPEN) ||\
+	defined(CONFIG_MACH_ARUBASLIM_OPEN) || defined(CONFIG_MACH_ROY)
+	REGULATOR_SUPPLY("vlcd",	NULL),
+#endif
 };
 
 PCOM_VREG_CONSUMERS(ncp)   = {
@@ -218,11 +226,20 @@ static struct proccomm_regulator_info msm7x27a_pcom_vreg_info[] = {
 	PCOM_VREG_SMP(smps2,  4, NULL, 1100000, 1100000, 0, -1, 0, 0, 0, 0, s),
 	PCOM_VREG_SMP(smps3,  2, NULL, 1800000, 1800000, 0, -1, 0, 0, 0, 0, s),
 	PCOM_VREG_SMP(smps4, 24, NULL, 2100000, 2100000, 0, -1, 0, 0, 0, 0, s),
+#if defined(CONFIG_MACH_ARUBA_OPEN) || defined(CONFIG_MACH_ARUBASLIM_OPEN) || defined(CONFIG_MACH_ROY)||defined(CONFIG_MACH_KYLEPLUS_OPEN) || defined(CONFIG_MACH_DELOS_OPEN)
+	PCOM_VREG_LDO(ldo01, 12, NULL, 3000000, 3300000, 0, -1, 0, 0, 0, 0, p),
+#else
 	PCOM_VREG_LDO(ldo01, 12, NULL, 1800000, 2100000, 0, -1, 0, 0, 0, 0, p),
+#endif
 	PCOM_VREG_LDO(ldo02, 13, NULL, 2850000, 2850000, 0, -1, 0, 0, 0, 0, p),
 	PCOM_VREG_LDO(ldo03, 49, NULL, 1200000, 1200000, 0, -1, 0, 0, 0, 0, n),
 	PCOM_VREG_LDO(ldo04, 50, NULL, 1100000, 1100000, 0, -1, 0, 0, 0, 0, n),
+#if defined(CONFIG_MACH_ARUBA_DUOS_CTC)	|| defined(CONFIG_MACH_INFINITE_DUOS_CTC) || defined(CONFIG_MACH_KYLEPLUS_CTC) \
+	|| defined(CONFIG_MACH_BAFFIN_DUOS_CTC) || defined(CONFIG_MACH_DELOS_DUOS_CTC) || defined(CONFIG_MACH_HENNESSY_DUOS_CTC)
+	PCOM_VREG_LDO(ldo05, 45, NULL, 1200000, 1200000, 0, -1, 0, 0, 0, 0, n),
+#else
 	PCOM_VREG_LDO(ldo05, 45, NULL, 1300000, 1350000, 0, -1, 0, 0, 0, 0, n),
+#endif
 	PCOM_VREG_LDO(ldo06, 51, NULL, 1200000, 1200000, 0, -1, 0, 0, 0, 0, n),
 	PCOM_VREG_LDO(ldo07,  0, NULL, 2600000, 2600000, 0, -1, 0, 0, 0, 0, p),
 	PCOM_VREG_LDO(ldo08,  9, NULL, 2850000, 2850000, 0, -1, 0, 0, 0, 0, p),
@@ -234,10 +251,22 @@ static struct proccomm_regulator_info msm7x27a_pcom_vreg_info[] = {
 	PCOM_VREG_LDO(ldo14, 16, NULL, 3300000, 3300000, 0, -1, 0, 0, 0, 0, p),
 	PCOM_VREG_LDO(ldo15, 54, NULL, 1800000, 2850000, 0, -1, 0, 0, 0, 0, p),
 	PCOM_VREG_LDO(ldo16, 19, NULL, 1800000, 2850000, 0, -1, 0, 0, 0, 0, p),
+#if defined(CONFIG_MACH_ARUBA_OPEN) || defined(CONFIG_MACH_ARUBASLIM_OPEN) || defined(CONFIG_MACH_ROY) || defined(CONFIG_MACH_DELOS_OPEN)
+	PCOM_VREG_LDO(ldo17, 56, NULL, 2700000, 2900000, 0, -1, 0, 0, 0, 0, p),
+#else
 	PCOM_VREG_LDO(ldo17, 56, NULL, 2900000, 3300000, 0, -1, 0, 0, 0, 0, p),
+#endif
+#if defined(CONFIG_MACH_DELOS_CTC)  || defined(CONFIG_MACH_HENNESSY_DUOS_CTC)
+	PCOM_VREG_LDO(ldo18, 11, NULL, 3000000, 3000000, 0, -1, 0, 0, 0, 0, p),
+#else
 	PCOM_VREG_LDO(ldo18, 11, NULL, 2700000, 2700000, 0, -1, 0, 0, 0, 0, p),
-	PCOM_VREG_LDO(ldo19, 57, NULL, 1200000, 1800000, 0, -1, 0, 0, 0, 0, p),
-
+#endif	
+#if defined(CONFIG_MACH_DELOS_OPEN) || defined(CONFIG_MACH_ARUBA_OPEN) ||\
+	defined(CONFIG_MACH_ARUBASLIM_OPEN) || defined(CONFIG_MACH_ROY)
+	PCOM_VREG_LDO(ldo19, 57, NULL, 3000000, 3000000, 0, -1, 0, 0, 0, 0, p),
+#else
+	PCOM_VREG_LDO(ldo19, 57, NULL, 1200000, 3000000, 0, -1, 0, 0, 0, 0, p),
+#endif
 	PCOM_VREG_NCP(ncp,   31, NULL, -1800000, -1800000, 0,     0, 0, 0, 0),
 };
 

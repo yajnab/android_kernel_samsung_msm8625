@@ -34,7 +34,11 @@ obj-$(CONFIG_ROSE)		+= rose/
 obj-$(CONFIG_AX25)		+= ax25/
 obj-$(CONFIG_CAN)		+= can/
 obj-$(CONFIG_IRDA)		+= irda/
+ifeq ($(CONFIG_BT_MGMT),y)
+obj-$(CONFIG_BT)		+= bluetooth_mgmt/
+else
 obj-$(CONFIG_BT)		+= bluetooth/
+endif
 obj-$(CONFIG_SUNRPC)		+= sunrpc/
 obj-$(CONFIG_AF_RXRPC)		+= rxrpc/
 obj-$(CONFIG_ATM)		+= atm/
@@ -48,7 +52,7 @@ endif
 obj-$(CONFIG_IP_DCCP)		+= dccp/
 obj-$(CONFIG_IP_SCTP)		+= sctp/
 obj-$(CONFIG_RDS)		+= rds/
-obj-$(CONFIG_WIRELESS)		+= wireless/
+obj-$(CONFIG_WIRELESS)		+= wireless_ath/
 obj-$(CONFIG_MAC80211)		+= mac80211/
 obj-$(CONFIG_TIPC)		+= tipc/
 obj-$(CONFIG_NETLABEL)		+= netlabel/

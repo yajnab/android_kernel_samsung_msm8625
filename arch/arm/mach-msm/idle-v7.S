@@ -71,6 +71,10 @@ ENTRY(msm_pm_collapse)
 	cpsid   f
 #endif
 
+#if !defined(CONFIG_MACH_NEVIS3G) && !defined(CONFIG_MACH_NEVIS3G_REV03)
+	MARKER	idle_v7_start_ptr 0x3 0x6 0x1
+#endif
+
 	ldr     r0, =msm_saved_state	/* address of msm_saved_state ptr */
 	ldr	r0, [r0]		/* load ptr */
 #if (NR_CPUS >= 2)
@@ -143,8 +147,29 @@ skip:
 
 	SUSPEND_8x25_L2
 	SET_SMP_COHERENCY OFF
+
+#if !defined(CONFIG_MACH_NEVIS3G) && !defined(CONFIG_MACH_NEVIS3G_REV03)
+	DUMP_SPM_REG idle_v7_start_ptr
+	WRITE_SMEM pm_write_smem_data 0xAA
+	MARKER	idle_v7_start_ptr 0x4 0x7 0x1
+	dsb
+#endif
+
 	wfi
-	DELAY_8x25 300
+#ifdef CONFIG_ARCH_MSM8625
+/* Add 5000 NOPs after 'wfi' for 8x25 target */
+	ldr	r0, =nop_size
+	ldr	r0, [r0]
+loop:
+	nop
+	sub r0, r0, #1
+	cmp r0, #1
+	bne loop
+#endif
+
+#if !defined(CONFIG_MACH_NEVIS3G) && !defined(CONFIG_MACH_NEVIS3G_REV03)
+	MARKER	idle_v7_start_ptr 0x5 0x8 0x1
+#endif
 
 	mcr     p15, 0, r4, c1, c0, 0    /* restore d/i cache  */
 	isb
@@ -169,6 +194,11 @@ skip:
 #endif
 	ldmfd   r0, {r4-r14}		 /* restore registers */
 	mov     r0, #0                   /* return power collapse failed */
+
+#if !defined(CONFIG_MACH_NEVIS3G) && !defined(CONFIG_MACH_NEVIS3G_REV03)
+	MARKER	idle_v7_start_ptr 0x6 0x9 0x1
+#endif
+
 	bx      lr
 
 ENTRY(msm_pm_collapse_exit)
@@ -181,6 +211,9 @@ ENTRY(msm_pm_collapse_exit)
 	mov     r1, #'A'
 	str     r1, [r0, #0x00C]
 #endif
+#if !defined(CONFIG_MACH_NEVIS3G) && !defined(CONFIG_MACH_NEVIS3G_REV03)
+	MARKER  IDLE_V7_START_PHY 0x9 0xC 0x0
+#endif	
 	ldr     r1, =msm_saved_state_phys
 	ldr     r2, =msm_pm_collapse_exit
 	adr     r3, msm_pm_collapse_exit
@@ -244,6 +277,10 @@ msm_pm_pa_to_va:
 	dsb
 	isb
 
+#if !defined(CONFIG_MACH_NEVIS3G) && !defined(CONFIG_MACH_NEVIS3G_REV03)
+	MARKER	idle_v7_start_ptr 0xA 0xD 0x1
+#endif
+
 #ifdef CONFIG_ARCH_MSM_KRAIT
 	mrc	p15, 0, r1, c0, c0, 0
 	ldr	r3, =0xff00fc00
@@ -273,16 +310,21 @@ msm_pm_pa_to_va:
 1:	b       1b
 
 ENTRY(msm_pm_boot_entry)
+#if !defined(CONFIG_MACH_NEVIS3G) && !defined(CONFIG_MACH_NEVIS3G_REV03)
+	MARKER  IDLE_V7_START_PHY 0x7 0xA 0x0
+#endif	
 	mrc     p15, 0, r0, c0, c0, 5    /* MPIDR                          */
 	and     r0, r0, #15              /* what CPU am I                  */
-
 	ldr     r1, =msm_pm_boot_vector
 	ldr     r2, =msm_pm_boot_entry
 	adr     r3, msm_pm_boot_entry
 	add     r1, r1, r3               /* translate virt to phys addr    */
 	sub     r1, r1, r2
-
 	add     r1, r1, r0, LSL #2       /* locate boot vector for our cpu */
+#if !defined(CONFIG_MACH_NEVIS3G) && !defined(CONFIG_MACH_NEVIS3G_REV03)	
+	MARKER  IDLE_V7_START_PHY 0x8 0xB 0x0
+#endif	
+
 	ldr     pc, [r1]                 /* jump                           */
 
 ENTRY(msm_pm_set_l2_flush_flag)
@@ -312,6 +354,10 @@ msm_pm_boot_vector:
 target_type:
 	.long  0x0
 
+	.globl nop_size
+nop_size:
+	.long  0x0
+
 	.globl apps_power_collapse
 apps_power_collapse:
 	.long 0x0
@@ -319,6 +365,36 @@ apps_power_collapse:
 	.globl l2x0_base_addr
 l2x0_base_addr:
 	.long 0x0
+
+#if !defined(CONFIG_MACH_NEVIS3G) && !defined(CONFIG_MACH_NEVIS3G_REV03)
+	.globl	idle_v7_start_ptr
+idle_v7_start_ptr:
+	.long	0x0
+
+	.globl spm0_base_addr
+spm0_base_addr:
+	.long 0x0
+
+	.globl spm1_base_addr
+spm1_base_addr:
+	.long 0x0
+
+	.globl spm2_base_addr
+spm2_base_addr:
+	.long 0x0
+
+	.globl spm3_base_addr
+spm3_base_addr:
+	.long 0x0
+
+	.globl  apps_pwr_dwn
+apps_pwr_dwn:
+	.long   0x0
+
+	.globl pm_write_smem_data
+pm_write_smem_data:
+	.long	0x0
+#endif	
 
 /*
  * Default the l2 flush flag to 1 so that caches are flushed during power

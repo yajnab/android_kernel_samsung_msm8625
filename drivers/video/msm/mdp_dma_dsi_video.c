@@ -45,7 +45,11 @@ static ssize_t vsync_show_event(struct device *dev,
 		atomic_read(&vsync_cntrl.vsync_resume) == 0)
 		return 0;
 
-	wait_for_completion(&vsync_cntrl.vsync_wait);
+	//wait_for_completion(&vsync_cntrl.vsync_wait);
+	//QCOM DEBUG
+	if (wait_for_completion_timeout(&vsync_cntrl.vsync_wait, HZ/10) <= 0)
+		pr_err("%s: Time Out\n", __func__);
+
 	ret = snprintf(buf, PAGE_SIZE, "VSYNC=%llu",
 	ktime_to_ns(vsync_cntrl.vsync_time));
 	buf[strlen(buf) + 1] = '\0';
@@ -222,12 +226,14 @@ int mdp_dsi_video_on(struct platform_device *pdev)
 	ctrl_polarity =	(data_en_polarity << 2) |
 		(vsync_polarity << 1) | (hsync_polarity);
 
+#ifdef CONFIG_FB_MSM_MIPI_DSI
 	if (!(mfd->cont_splash_done)) {
 		mdp_pipe_ctrl(MDP_CMD_BLOCK,
 			MDP_BLOCK_POWER_OFF, FALSE);
 		MDP_OUTP(MDP_BASE + DSI_VIDEO_BASE, 0);
 		mipi_dsi_controller_cfg(0);
 	}
+#endif
 
 	MDP_OUTP(MDP_BASE + DSI_VIDEO_BASE + 0x4, hsync_ctrl);
 	MDP_OUTP(MDP_BASE + DSI_VIDEO_BASE + 0x8, vsync_period);
@@ -243,7 +249,9 @@ int mdp_dsi_video_on(struct platform_device *pdev)
 	MDP_OUTP(MDP_BASE + DSI_VIDEO_BASE + 0x30, dsi_hsync_skew);
 	MDP_OUTP(MDP_BASE + DSI_VIDEO_BASE + 0x38, ctrl_polarity);
 
+#if !defined(CONFIG_FB_MSM_MIPI_NT35510_CMD_WVGA_PT_PANEL) && !defined(CONFIG_FB_MSM_MIPI_HX8357_CMD_SMD_HVGA_PT_PANEL)
 	ret = panel_next_on(pdev);
+#endif
 	if (ret == 0) {
 		/* enable DSI block */
 		MDP_OUTP(MDP_BASE + DSI_VIDEO_BASE, 1);
@@ -267,6 +275,11 @@ int mdp_dsi_video_on(struct platform_device *pdev)
 		pr_debug("%s: kobject_uevent(KOBJ_ADD)\n", __func__);
 		vsync_cntrl.sysfs_created = 1;
 	}
+	mdp_histogram_ctrl_all(TRUE);
+
+#if defined(CONFIG_FB_MSM_MIPI_NT35510_CMD_WVGA_PT_PANEL) || defined(CONFIG_FB_MSM_MIPI_HX8357_CMD_SMD_HVGA_PT_PANEL)
+	ret = panel_next_on(pdev);	
+#endif
 
 	return ret;
 }
@@ -274,6 +287,13 @@ int mdp_dsi_video_on(struct platform_device *pdev)
 int mdp_dsi_video_off(struct platform_device *pdev)
 {
 	int ret = 0;
+
+	mdp_histogram_ctrl_all(FALSE);
+
+#if defined(CONFIG_FB_MSM_MIPI_HX8357_CMD_SMD_HVGA_PT_PANEL)
+	ret = panel_next_off(pdev);
+#endif
+
 	/* MDP cmd block enable */
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
 	MDP_OUTP(MDP_BASE + DSI_VIDEO_BASE, 0);
@@ -282,7 +302,9 @@ int mdp_dsi_video_off(struct platform_device *pdev)
 	/*Turning off DMA_P block*/
 	mdp_pipe_ctrl(MDP_DMA2_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
 
+#if !defined(CONFIG_FB_MSM_MIPI_HX8357_CMD_SMD_HVGA_PT_PANEL)
 	ret = panel_next_off(pdev);
+#endif
 
 	atomic_set(&vsync_cntrl.suspend, 1);
 	atomic_set(&vsync_cntrl.vsync_resume, 0);
@@ -305,20 +327,22 @@ void mdp_dma_video_vsync_ctrl(int enable)
 		INIT_COMPLETION(vsync_cntrl.vsync_wait);
 
 	vsync_cntrl.vsync_irq_enabled = enable;
-	if (!enable)
-		vsync_cntrl.disabled_clocks = 0;
 	disabled_clocks = vsync_cntrl.disabled_clocks;
 	spin_unlock_irqrestore(&mdp_spin_lock, flag);
 
-	if (enable && disabled_clocks) {
+	if (enable && disabled_clocks)
 		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
-		spin_lock_irqsave(&mdp_spin_lock, flag);
+
+	spin_lock_irqsave(&mdp_spin_lock, flag);
+	if (enable && vsync_cntrl.disabled_clocks) {
 		outp32(MDP_INTR_CLEAR, LCDC_FRAME_START);
 		mdp_intr_mask |= LCDC_FRAME_START;
 		outp32(MDP_INTR_ENABLE, mdp_intr_mask);
 		mdp_enable_irq(MDP_VSYNC_TERM);
-		spin_unlock_irqrestore(&mdp_spin_lock, flag);
+		vsync_cntrl.disabled_clocks = 0;
 	}
+	spin_unlock_irqrestore(&mdp_spin_lock, flag);
+	
 	if (vsync_cntrl.vsync_irq_enabled &&
 		atomic_read(&vsync_cntrl.suspend) == 0)
 		atomic_set(&vsync_cntrl.vsync_resume, 1);
@@ -356,7 +380,11 @@ void mdp_dsi_video_update(struct msm_fb_data_type *mfd)
 	outp32(MDP_INTR_ENABLE, mdp_intr_mask);
 
 	spin_unlock_irqrestore(&mdp_spin_lock, flag);
-	wait_for_completion_killable(&mfd->dma->comp);
+	//wait_for_completion_killable(&mfd->dma->comp);
+	//QCOM DEBUG
+	if (wait_for_completion_killable_timeout(&mfd->dma->comp, HZ/10) <= 0)
+		pr_err("%s: Time Out\n", __func__);
+	
 	mdp_disable_irq(irq_block);
 	up(&mfd->dma->mutex);
 }

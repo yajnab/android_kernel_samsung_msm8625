@@ -663,6 +663,12 @@ void msm_gpio_exit_sleep(void)
 
 int gpio_tlmm_config(unsigned config, unsigned disable)
 {
+#if 0 /* use for only debugging mode */
+	printk("%s: pin=%d func=%d dir=%d pull=%d drvstr=%d\n", __func__, 
+			       GPIO_PIN(config), GPIO_FUNC(config),
+			       GPIO_DIR(config), GPIO_PULL(config),
+			       GPIO_DRVSTR(config));
+#endif
 	return msm_proc_comm(PCOM_RPC_GPIO_TLMM_CONFIG_EX, &config, &disable);
 }
 EXPORT_SYMBOL(gpio_tlmm_config);

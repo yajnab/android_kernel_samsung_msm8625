@@ -16,6 +16,12 @@
 
 #include "htc.h"
 
+static int ath9k_debugfs_open(struct inode *inode, struct file *file)
+{
+	file->private_data = inode->i_private;
+	return 0;
+}
+
 static ssize_t read_file_tgt_int_stats(struct file *file, char __user *user_buf,
 				       size_t count, loff_t *ppos)
 {
@@ -69,7 +75,7 @@ static ssize_t read_file_tgt_int_stats(struct file *file, char __user *user_buf,
 
 static const struct file_operations fops_tgt_int_stats = {
 	.read = read_file_tgt_int_stats,
-	.open = simple_open,
+	.open = ath9k_debugfs_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -139,7 +145,7 @@ static ssize_t read_file_tgt_tx_stats(struct file *file, char __user *user_buf,
 
 static const struct file_operations fops_tgt_tx_stats = {
 	.read = read_file_tgt_tx_stats,
-	.open = simple_open,
+	.open = ath9k_debugfs_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -185,7 +191,7 @@ static ssize_t read_file_tgt_rx_stats(struct file *file, char __user *user_buf,
 
 static const struct file_operations fops_tgt_rx_stats = {
 	.read = read_file_tgt_rx_stats,
-	.open = simple_open,
+	.open = ath9k_debugfs_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -237,7 +243,7 @@ static ssize_t read_file_xmit(struct file *file, char __user *user_buf,
 
 static const struct file_operations fops_xmit = {
 	.read = read_file_xmit,
-	.open = simple_open,
+	.open = ath9k_debugfs_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -358,7 +364,7 @@ static ssize_t read_file_recv(struct file *file, char __user *user_buf,
 
 static const struct file_operations fops_recv = {
 	.read = read_file_recv,
-	.open = simple_open,
+	.open = ath9k_debugfs_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -393,7 +399,7 @@ static ssize_t read_file_slot(struct file *file, char __user *user_buf,
 
 static const struct file_operations fops_slot = {
 	.read = read_file_slot,
-	.open = simple_open,
+	.open = ath9k_debugfs_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -440,7 +446,7 @@ static ssize_t read_file_queue(struct file *file, char __user *user_buf,
 
 static const struct file_operations fops_queue = {
 	.read = read_file_queue,
-	.open = simple_open,
+	.open = ath9k_debugfs_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -481,7 +487,7 @@ static ssize_t write_file_debug(struct file *file, const char __user *user_buf,
 static const struct file_operations fops_debug = {
 	.read = read_file_debug,
 	.write = write_file_debug,
-	.open = simple_open,
+	.open = ath9k_debugfs_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -630,7 +636,7 @@ static ssize_t read_file_base_eeprom(struct file *file, char __user *user_buf,
 
 static const struct file_operations fops_base_eeprom = {
 	.read = read_file_base_eeprom,
-	.open = simple_open,
+	.open = ath9k_debugfs_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -911,7 +917,7 @@ static ssize_t read_file_modal_eeprom(struct file *file, char __user *user_buf,
 
 static const struct file_operations fops_modal_eeprom = {
 	.read = read_file_modal_eeprom,
-	.open = simple_open,
+	.open = ath9k_debugfs_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };

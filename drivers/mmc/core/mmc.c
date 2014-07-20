@@ -467,6 +467,8 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 		if (ext_csd[EXT_CSD_BKOPS_SUPPORT] & 0x1) {
 			card->ext_csd.bkops = 1;
 			card->ext_csd.bkops_en = ext_csd[EXT_CSD_BKOPS_EN];
+			pr_info("%s: ext_csd[EXT_CSD_BKOPS_EN] = %d\n", mmc_hostname(card->host), ext_csd[EXT_CSD_BKOPS_EN]); 
+
 			card->ext_csd.raw_bkops_status =
 				ext_csd[EXT_CSD_BKOPS_STATUS];
 			if (!card->ext_csd.bkops_en &&
@@ -476,8 +478,10 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 				if (err)
 					pr_warning("%s: Enabling BKOPS failed\n",
 						mmc_hostname(card->host));
-				else
+				else {
 					card->ext_csd.bkops_en = 1;
+					pr_info("%s: Enabled BKOPs\n", mmc_hostname(card->host)); 
+				}	
 			}
 		}
 

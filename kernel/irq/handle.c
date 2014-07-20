@@ -19,6 +19,9 @@
 #include <trace/events/irq.h>
 
 #include "internals.h"
+#ifdef CONFIG_SEC_DEBUG
+#include <linux/sec_debug.h>
+#endif
 
 /**
  * handle_bad_irq - handle spurious and unhandled irqs
@@ -137,11 +140,19 @@ handle_irq_event_percpu(struct irq_desc *desc, struct irqaction *action)
 
 	do {
 		irqreturn_t res;
-
+#ifdef CONFIG_SEC_DEBUG_SCHED_LOG
+		sec_debug_irq_sched_log(irq, (void *)action->handler, 1);
+		sec_debug_timer_log(4444, (int)irqs_disabled(),\
+					(void *)action->handler);
+#endif /* CONFIG_SEC_DEBUG_SCHED_LOG */
 		trace_irq_handler_entry(irq, action);
 		res = action->handler(irq, action->dev_id);
 		trace_irq_handler_exit(irq, action, res);
-
+#ifdef CONFIG_SEC_DEBUG_SCHED_LOG
+		sec_debug_timer_log(5555, (int)irqs_disabled(),\
+					(void *)action->handler);
+		sec_debug_irq_sched_log(irq, (void *)action->handler, 2);
+#endif /* CONFIG_SEC_DEBUG_SCHED_LOG */
 		if (WARN_ONCE(!irqs_disabled(),"irq %u handler %pF enabled interrupts\n",
 			      irq, action->handler))
 			local_irq_disable();

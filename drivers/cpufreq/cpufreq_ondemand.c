@@ -26,6 +26,10 @@
 #include <linux/workqueue.h>
 #include <linux/slab.h>
 
+#if !defined(CONFIG_MACH_ROY)
+#define CONFIG_SEC_CPU_STEPPING
+#endif
+
 /*
  * dbs is used in this file as a shortform for demandbased switching
  * It helps to keep variable names smaller, simpler
@@ -41,6 +45,9 @@
 #define MIN_FREQUENCY_UP_THRESHOLD		(11)
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
 #define MIN_FREQUENCY_DOWN_DIFFERENTIAL		(1)
+#ifdef CONFIG_SEC_CPU_STEPPING
+#define DEF_FREQ_STEP				(40)
+#endif /* CONFIG_SEC_CPU_STEPPING */
 
 /*
  * The polling frequency of this governor depends on the capability of
@@ -115,7 +122,12 @@ static DEFINE_MUTEX(dbs_mutex);
 
 static struct workqueue_struct *input_wq;
 
-static DEFINE_PER_CPU(struct work_struct, dbs_refresh_work);
+struct dbs_work_struct {
+	struct work_struct work;
+	unsigned int cpu;
+};
+
+static DEFINE_PER_CPU(struct dbs_work_struct, dbs_refresh_work);
 
 static struct dbs_tuners {
 	unsigned int sampling_rate;
@@ -125,12 +137,19 @@ static struct dbs_tuners {
 	unsigned int sampling_down_factor;
 	int          powersave_bias;
 	unsigned int io_is_busy;
+#ifdef CONFIG_SEC_CPU_STEPPING
+	/* msm8960 tuners */
+	unsigned int freq_step;
+#endif /* CONFIG_SEC_CPU_STEPPING */
 } dbs_tuners_ins = {
 	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
 	.sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR,
 	.down_differential = DEF_FREQUENCY_DOWN_DIFFERENTIAL,
 	.ignore_nice = 0,
 	.powersave_bias = 0,
+#ifdef CONFIG_SEC_CPU_STEPPING
+	.freq_step = DEF_FREQ_STEP,
+#endif /* CONFIG_SEC_CPU_STEPPING */
 };
 
 static inline u64 get_cpu_idle_time_jiffy(unsigned int cpu, u64 *wall)
@@ -707,11 +726,22 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 
 	/* Check for frequency increase */
 	if (max_load_freq > dbs_tuners_ins.up_threshold * policy->cur) {
+#ifdef CONFIG_SEC_CPU_STEPPING
+		int inc = (policy->max * dbs_tuners_ins.freq_step) / 100;
+		int target = min(policy->max, policy->cur + inc);
+#endif /* CONFIG_SEC_CPU_STEPPING */
 		/* If switching to max speed, apply sampling_down_factor */
+#ifdef CONFIG_SEC_CPU_STEPPING
+		if (policy->cur < policy->max && target == policy->max)
+			this_dbs_info->rate_mult =
+				dbs_tuners_ins.sampling_down_factor;
+		dbs_freq_increase(policy, target);
+#else /* CONFIG_SEC_CPU_STEPPING */
 		if (policy->cur < policy->max)
 			this_dbs_info->rate_mult =
 				dbs_tuners_ins.sampling_down_factor;
 		dbs_freq_increase(policy, policy->max);
+#endif /* CONFIG_SEC_CPU_STEPPING */
 		return;
 	}
 
@@ -831,11 +861,15 @@ static int should_io_be_busy(void)
 	return 0;
 }
 
-static void dbs_refresh_callback(struct work_struct *unused)
+static void dbs_refresh_callback(struct work_struct *work)
 {
 	struct cpufreq_policy *policy;
 	struct cpu_dbs_info_s *this_dbs_info;
-	unsigned int cpu = smp_processor_id();
+	struct dbs_work_struct *dbs_work;
+	unsigned int cpu;
+
+	dbs_work = container_of(work, struct dbs_work_struct, work);
+	cpu = dbs_work->cpu;
 
 	get_online_cpus();
 
@@ -865,7 +899,7 @@ bail_acq_sema_failed:
 	put_online_cpus();
 	return;
 }
-
+#if !defined(CONFIG_SEC_DVFS)
 static void dbs_input_event(struct input_handle *handle, unsigned int type,
 		unsigned int code, int value)
 {
@@ -876,10 +910,14 @@ static void dbs_input_event(struct input_handle *handle, unsigned int type,
 		/* nothing to do */
 		return;
 	}
-
-	for_each_online_cpu(i) {
-		queue_work_on(i, input_wq, &per_cpu(dbs_refresh_work, i));
+#ifdef CONFIG_SEC_CPU_STEPPING
+	if (strncmp(handle->dev->name,
+			"sec_touchscreen", strlen("sec_touchscreen"))){
+		return;
 	}
+#endif /* CONFIG_SEC_CPU_STEPPING */
+	for_each_online_cpu(i)
+		queue_work_on(i, input_wq, &per_cpu(dbs_refresh_work, i).work);
 }
 
 static int dbs_input_connect(struct input_handler *handler,
@@ -931,6 +969,7 @@ static struct input_handler dbs_input_handler = {
 	.name		= "cpufreq_ond",
 	.id_table	= dbs_ids,
 };
+#endif
 
 static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 				   unsigned int event)
@@ -990,11 +1029,12 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 				    latency * LATENCY_MULTIPLIER);
 			dbs_tuners_ins.io_is_busy = should_io_be_busy();
 		}
+#if !defined(CONFIG_SEC_DVFS)
 		if (!cpu)
 			rc = input_register_handler(&dbs_input_handler);
+#endif
 		mutex_unlock(&dbs_mutex);
 
-		mutex_init(&this_dbs_info->timer_mutex);
 
 		if (!ondemand_powersave_bias_setspeed(
 					this_dbs_info->cur_policy,
@@ -1012,8 +1052,10 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 		/* If device is being removed, policy is no longer
 		 * valid. */
 		this_dbs_info->cur_policy = NULL;
+#if !defined(CONFIG_SEC_DVFS)
 		if (!cpu)
 			input_unregister_handler(&dbs_input_handler);
+#endif
 		mutex_unlock(&dbs_mutex);
 		if (!dbs_enable)
 			sysfs_remove_group(cpufreq_global_kobject,
@@ -1071,7 +1113,14 @@ static int __init cpufreq_gov_dbs_init(void)
 		return -EFAULT;
 	}
 	for_each_possible_cpu(i) {
-		INIT_WORK(&per_cpu(dbs_refresh_work, i), dbs_refresh_callback);
+		struct cpu_dbs_info_s *this_dbs_info =
+			&per_cpu(od_cpu_dbs_info, i);
+		struct dbs_work_struct *dbs_work =
+			&per_cpu(dbs_refresh_work, i);
+
+		mutex_init(&this_dbs_info->timer_mutex);
+		INIT_WORK(&dbs_work->work, dbs_refresh_callback);
+		dbs_work->cpu = i;
 	}
 
 	return cpufreq_register_governor(&cpufreq_gov_ondemand);

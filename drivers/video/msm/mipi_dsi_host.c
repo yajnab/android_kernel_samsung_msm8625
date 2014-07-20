@@ -40,6 +40,9 @@
 #include "mdp4.h"
 
 static struct completion dsi_dma_comp;
+#if defined(CONFIG_FB_MSM_MIPI_HX8357_CMD_SMD_HVGA_PT_PANEL)
+static struct completion dsi_video_comp;
+#endif
 static struct completion dsi_mdp_comp;
 static struct dsi_buf dsi_tx_buf;
 static struct dsi_buf dsi_rx_buf;
@@ -91,6 +94,9 @@ void mipi_dsi_mdp_stat_inc(int which)
 void mipi_dsi_init(void)
 {
 	init_completion(&dsi_dma_comp);
+#if defined(CONFIG_FB_MSM_MIPI_HX8357_CMD_SMD_HVGA_PT_PANEL)
+	init_completion(&dsi_video_comp);
+#endif
 	init_completion(&dsi_mdp_comp);
 	mipi_dsi_buf_alloc(&dsi_tx_buf, DSI_BUF_SIZE);
 	mipi_dsi_buf_alloc(&dsi_rx_buf, DSI_BUF_SIZE);
@@ -814,7 +820,7 @@ static int mipi_dsi_long_read_resp(struct dsi_buf *rp)
 	return len;
 }
 
-void mipi_dsi_host_init(struct mipi_panel_info *pinfo)
+void mipi_dsi_host_init(struct mipi_panel_info *pinfo, char dlane_swap)
 {
 	uint32 dsi_ctrl, intr_ctrl;
 	uint32 data;
@@ -894,7 +900,11 @@ void mipi_dsi_host_init(struct mipi_panel_info *pinfo)
 
 	/* from frame buffer, low power mode */
 	/* DSI_COMMAND_MODE_DMA_CTRL */
+#if defined(CONFIG_FB_MSM_MIPI_HX8369B_WVGA_PT_PANEL)	
+	MIPI_OUTP(MIPI_DSI_BASE + 0x38, 0x10000000);
+#else
 	MIPI_OUTP(MIPI_DSI_BASE + 0x38, 0x14000000);
+#endif
 
 	data = 0;
 	if (pinfo->te_sel)
@@ -905,7 +915,7 @@ void mipi_dsi_host_init(struct mipi_panel_info *pinfo)
 	MIPI_OUTP(MIPI_DSI_BASE + 0x0080, data); /* DSI_TRIG_CTRL */
 
 	/* DSI_LAN_SWAP_CTRL */
-	MIPI_OUTP(MIPI_DSI_BASE + 0x00ac, pinfo->dlane_swap);
+	MIPI_OUTP(MIPI_DSI_BASE + 0x00ac, dlane_swap);
 
 	/* clock out ctrl */
 	data = pinfo->t_clk_post & 0x3f;	/* 6 bits */
@@ -1011,8 +1021,13 @@ void mipi_dsi_op_mode_config(int mode)
 		intr_ctrl = DSI_INTR_CMD_DMA_DONE_MASK;
 	} else {		/* command mode */
 		dsi_ctrl |= 0x05;
+#if defined(CONFIG_FB_MSM_MIPI_HX8357_CMD_SMD_HVGA_PT_PANEL)
+		intr_ctrl = DSI_INTR_CMD_DMA_DONE_MASK | DSI_INTR_ERROR_MASK |
+				DSI_INTR_CMD_MDP_DONE_MASK | 1<<16 | 0<<17;
+#else
 		intr_ctrl = DSI_INTR_CMD_DMA_DONE_MASK | DSI_INTR_ERROR_MASK |
 				DSI_INTR_CMD_MDP_DONE_MASK;
+#endif
 	}
 
 	pr_debug("%s: dsi_ctrl=%x intr=%x\n", __func__, dsi_ctrl, intr_ctrl);
@@ -1038,9 +1053,10 @@ void mipi_dsi_mdp_busy_wait(struct msm_fb_data_type *mfd)
 
 	if (need_wait) {
 		/* wait until DMA finishes the current job */
-		pr_debug("%s: pending pid=%d\n",
+		printk("%s: pending pid=%d\n",
 				__func__, current->pid);
-		wait_for_completion(&dsi_mdp_comp);
+		//wait_for_completion(&dsi_mdp_comp);
+		wait_for_completion_timeout(&dsi_mdp_comp, 100);
 	}
 	pr_debug("%s: done pid=%d\n",
 				__func__, current->pid);
@@ -1138,6 +1154,7 @@ int mipi_dsi_cmds_tx(struct dsi_buf *tp, struct dsi_cmd_desc *cmds, int cnt)
 	uint32 dsi_ctrl, ctrl;
 	int i, video_mode;
 	unsigned long flag;
+	int err=0;
 
 	/* turn on cmd mode
 	* for video mode, do not send cmds more than
@@ -1161,9 +1178,19 @@ int mipi_dsi_cmds_tx(struct dsi_buf *tp, struct dsi_cmd_desc *cmds, int cnt)
 		mipi_dsi_enable_irq(DSI_CMD_TERM);
 		mipi_dsi_buf_init(tp);
 		mipi_dsi_cmd_dma_add(tp, cm);
-		mipi_dsi_cmd_dma_tx(tp);
+		err = mipi_dsi_cmd_dma_tx(tp);
+#if defined(CONFIG_FB_MSM_MIPI_HX8369B_WVGA_PT_PANEL)
+		if(err == 0) {
+			spin_lock_irqsave(&dsi_mdp_lock, flag);
+			mipi_dsi_disable_irq_nosync(DSI_CMD_TERM);
+			mipi_dsi_sw_reset();
+			spin_unlock_irqrestore(&dsi_mdp_lock, flag);
+			break;
+		}
+#endif
 		if (cm->wait)
 			msleep(cm->wait);
+
 		cm++;
 	}
 
@@ -1175,7 +1202,11 @@ int mipi_dsi_cmds_tx(struct dsi_buf *tp, struct dsi_cmd_desc *cmds, int cnt)
 	complete(&dsi_mdp_comp);
 	spin_unlock_irqrestore(&dsi_mdp_lock, flag);
 
+#if defined(CONFIG_FB_MSM_MIPI_HX8369B_WVGA_PT_PANEL)
+	return err;
+#else
 	return cnt;
+#endif
 }
 
 /* MIPI_DSI_MRPS, Maximum Return Packet Size */
@@ -1203,8 +1234,9 @@ int mipi_dsi_cmds_rx(struct msm_fb_data_type *mfd,
 			struct dsi_cmd_desc *cmds, int rlen)
 {
 	int cnt, len, diff, pkt_size;
+        unsigned long flag;
 	char cmd;
-	unsigned long flag;
+	
 
 	if (mfd->panel_info.mipi.no_max_pkt_size) {
 		/* Only support rlen = 4*n */
@@ -1247,7 +1279,11 @@ int mipi_dsi_cmds_rx(struct msm_fb_data_type *mfd,
 
 	if (!mfd->panel_info.mipi.no_max_pkt_size) {
 		/* packet size need to be set at every read */
+#if defined(CONFIG_CHECK_SETTING_TABLE)
+		pkt_size = rlen;
+#else
 		pkt_size = len;
+#endif
 		max_pktsize[0] = pkt_size;
 		mipi_dsi_enable_irq(DSI_CMD_TERM);
 		mipi_dsi_buf_init(tp);
@@ -1295,6 +1331,7 @@ int mipi_dsi_cmds_rx(struct msm_fb_data_type *mfd,
 		rp->data += 2;
 	}
 
+#if !defined(CONFIG_CHECK_SETTING_TABLE)
 	cmd = rp->data[0];
 	switch (cmd) {
 	case DTYPE_ACK_ERR_RESP:
@@ -1317,7 +1354,7 @@ int mipi_dsi_cmds_rx(struct msm_fb_data_type *mfd,
 	default:
 		break;
 	}
-
+#endif
 	return rp->len;
 }
 
@@ -1445,6 +1482,7 @@ int mipi_dsi_cmd_dma_tx(struct dsi_buf *tp)
 {
 
 	unsigned long flags;
+	int remain_time;
 
 #ifdef DSI_HOST_DEBUG
 	int i;
@@ -1481,11 +1519,20 @@ int mipi_dsi_cmd_dma_tx(struct dsi_buf *tp)
 	wmb();
 	spin_unlock_irqrestore(&dsi_mdp_lock, flags);
 
-	wait_for_completion(&dsi_dma_comp);
+	//wait_for_completion(&dsi_dma_comp);
+	remain_time = wait_for_completion_timeout(&dsi_dma_comp, 30);
+	if(remain_time <= 0) {
+		printk("%s: wait_for_completion : time[%d]\n", __func__, remain_time);
+		remain_time = 0;
+	}
 
 	dma_unmap_single(&dsi_dev, tp->dmap, tp->len, DMA_TO_DEVICE);
 	tp->dmap = 0;
+#if defined(CONFIG_FB_MSM_MIPI_HX8369B_WVGA_PT_PANEL)
+	return remain_time;
+#else
 	return tp->len;
+#endif
 }
 
 int mipi_dsi_cmd_dma_rx(struct dsi_buf *rp, int rlen)
@@ -1519,7 +1566,7 @@ void mipi_dsi_cmd_mdp_busy(void)
 {
 	u32 status;
 	unsigned long flags;
-	int need_wait;
+	int need_wait = 0;
 
 	spin_lock_irqsave(&dsi_mdp_lock, flags);
 	status = MIPI_INP(MIPI_DSI_BASE + 0x0004);/* DSI_STATUS */
@@ -1531,8 +1578,12 @@ void mipi_dsi_cmd_mdp_busy(void)
 	}
 	spin_unlock_irqrestore(&dsi_mdp_lock, flags);
 
-	if (need_wait)
-		wait_for_completion(&dsi_mdp_comp);
+	if (need_wait) {
+		//wait_for_completion(&dsi_mdp_comp);
+		//QCOM DEBUG
+		if (wait_for_completion_timeout(&dsi_mdp_comp, HZ/10) <= 0)
+			pr_err("%s: Time Out\n", __func__);
+	}
 }
 
 /*
@@ -1725,6 +1776,23 @@ void mipi_dsi_error(void)
 	mipi_dsi_dln0_phy_err();	/* mask0, 0x3e00000 */
 }
 
+#if defined(CONFIG_FB_MSM_MIPI_HX8357_CMD_SMD_HVGA_PT_PANEL)
+void wait_for_video(int i)
+{
+	int y=0;
+	for(y=0;y<i;y++) {
+		INIT_COMPLETION(dsi_video_comp);
+		mipi_dsi_enable_irq(DSI_VIDEO_TERM);
+		pr_err("pkomandu: %s %i i=%i\n", __func__, __LINE__, y);
+		if (!wait_for_completion_timeout(&dsi_video_comp, HZ/10))
+		{
+			pr_err("timedout %s %i",__func__,__LINE__);
+			mipi_dsi_disable_irq(DSI_VIDEO_TERM);
+			break;
+		}
+	}
+}
+#endif
 
 irqreturn_t mipi_dsi_isr(int irq, void *ptr)
 {
@@ -1747,6 +1815,13 @@ irqreturn_t mipi_dsi_isr(int irq, void *ptr)
 		/*
 		* do something  here
 		*/
+#if defined(CONFIG_FB_MSM_MIPI_HX8357_CMD_SMD_HVGA_PT_PANEL)
+		spin_lock(&dsi_mdp_lock);
+		pr_err("pkomandu: COMPLETE\n");
+		complete(&dsi_video_comp);
+		mipi_dsi_disable_irq_nosync(DSI_VIDEO_TERM);
+		spin_unlock(&dsi_mdp_lock);
+#endif
 	}
 
 	if (isr & DSI_INTR_CMD_DMA_DONE) {

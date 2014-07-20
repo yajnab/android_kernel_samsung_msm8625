@@ -553,6 +553,11 @@ static int __init smd_tty_init(void)
 			legacy_ds |= cpu_is_msm8x60() &&
 					(socinfo_get_platform_subtype() == 0x0);
 
+                        //legacy_ds |= cpu_is_msm8625();
+			#ifdef CONFIG_USB_DUN_SUPPORT
+                        legacy_ds |= 1;
+                        #endif
+
 			if (!legacy_ds)
 				continue;
 		}

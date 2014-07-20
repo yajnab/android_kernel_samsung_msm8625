@@ -19,6 +19,9 @@
 #include <mach/rpc_pmapp.h>
 #include <mach/msm_rpcrouter.h>
 #include <mach/vreg.h>
+#include <mach/proc_comm.h>
+#include <linux/reboot.h>
+
 
 #define PMAPP_RPC_PROG			0x30000060
 #define PMAPP_RPC_VER_1_1		0x00010001
@@ -423,8 +426,24 @@ static int pmapp_rpc_req_reply(struct pmapp_buf *tbuf, struct pmapp_buf *rbuf,
 				PMAPP_RPC_TIMEOUT);
 
 	if (len <= 0) {
+		//work_around before QC patch
+		if(system_state == SYSTEM_RESTART) {
+			printk(KERN_ERR "%s: Try to Force Restart! \n", __func__);
+			machine_restart("Force_Restart");
+			printk(KERN_ERR "%s: Try to Force Restart Fail! \n", __func__);
+			return len;
+		}
+
 		printk(KERN_ERR "%s: rpc failed! len = %d\n", __func__, len);
-		pm->endpoint = NULL;	/* re-connect later ? */
+		// QC patch : Do not set endpoint variable to NULL
+		// The endpoint varaible is being set to NULL on recieving an error
+		// response in a RPC Call. Due to this RPC client tries to re-register
+		// with the server and causing a memory leak in SMEM. Hence do not set
+		// the Endpoint variable to null on an error response.
+		// 
+		// CRs-Fixed: 435094
+
+		// pm->endpoint = NULL;	/* re-connect later ? */
 		return len;
 	}
 

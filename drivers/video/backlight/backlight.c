@@ -191,6 +191,40 @@ static ssize_t backlight_show_max_brightness(struct device *dev,
 	return sprintf(buf, "%d\n", bd->props.max_brightness);
 }
 
+static ssize_t backlight_store_max_brightness(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int rc;
+	struct backlight_device *bd = to_backlight_device(dev);
+	unsigned long max_brightness;
+
+	rc = kstrtoul(buf, 0, &max_brightness);
+	if (rc)
+		return rc;
+
+	rc = -ENXIO;
+
+	printk("%s : %d\n", __func__, max_brightness);
+	
+	mutex_lock(&bd->ops_lock);
+	if (bd->ops) {
+		bd->props.max_brightness = max_brightness;
+		
+		if (bd->props.brightness > bd->props.max_brightness) {
+			printk("backlight: set to %lu\n",
+				 max_brightness);
+			bd->props.brightness = max_brightness;
+			backlight_update_status(bd);
+			rc = count;
+		}
+	}
+	mutex_unlock(&bd->ops_lock);
+
+	backlight_generate_event(bd, BACKLIGHT_UPDATE_SYSFS);
+
+	return rc;
+}
+
 static ssize_t backlight_show_actual_brightness(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -247,7 +281,7 @@ static struct device_attribute bl_device_attributes[] = {
 		     backlight_store_brightness),
 	__ATTR(actual_brightness, 0444, backlight_show_actual_brightness,
 		     NULL),
-	__ATTR(max_brightness, 0444, backlight_show_max_brightness, NULL),
+	__ATTR(max_brightness, 0644, backlight_show_max_brightness, backlight_store_max_brightness),
 	__ATTR(type, 0444, backlight_show_type, NULL),
 	__ATTR_NULL,
 };

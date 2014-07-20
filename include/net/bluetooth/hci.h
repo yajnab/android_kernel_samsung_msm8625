@@ -21,7 +21,9 @@
    COPYRIGHTS, TRADEMARKS OR OTHER RIGHTS, RELATING TO USE OF THIS
    SOFTWARE IS DISCLAIMED.
 */
-
+#ifdef CONFIG_BT_MGMT
+#include "hci_mgmt.h"
+#else
 #ifndef __HCI_H
 #define __HCI_H
 
@@ -164,9 +166,13 @@ enum {
 
 #define SCO_ESCO_MASK	(ESCO_HV1 | ESCO_HV2 | ESCO_HV3)
 #define EDR_ESCO_MASK	(ESCO_2EV3 | ESCO_3EV3 | ESCO_2EV5 | ESCO_3EV5)
+#ifdef CONFIG_BT_CSR7820
+#define ALL_ESCO_MASK (SCO_ESCO_MASK | ESCO_EV3 | ESCO_EV4 | ESCO_EV5 | \
+   ESCO_2EV3 /*EDR_ESCO_MASK*/)
+#else
 #define ALL_ESCO_MASK	(SCO_ESCO_MASK | ESCO_EV3 | ESCO_EV4 | ESCO_EV5 | \
 			EDR_ESCO_MASK)
-
+#endif
 /* Air Coding Format */
 #define ACF_CVSD	0x0000;
 #define ACF_ULAW	0x0001;
@@ -1610,3 +1616,5 @@ struct hci_inquiry_req {
 #define IREQ_CACHE_FLUSH 0x0001
 
 #endif /* __HCI_H */
+
+#endif /* BT_MGMT */

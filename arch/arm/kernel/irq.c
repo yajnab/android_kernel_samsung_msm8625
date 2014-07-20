@@ -41,6 +41,9 @@
 #include <asm/mach/time.h>
 
 #include <asm/perftypes.h>
+#ifdef CONFIG_SEC_DEBUG
+#include <linux/sec_debug.h>
+#endif
 
 /*
  * No architecture-specific irq_finish function defined in arm/arch/irqs.h.
@@ -73,6 +76,11 @@ void handle_IRQ(unsigned int irq, struct pt_regs *regs)
 {
 	struct pt_regs *old_regs = set_irq_regs(regs);
 
+#ifdef CONFIG_SEC_DEBUG_IRQ_EXIT_LOG
+	int cpu = smp_processor_id();
+	unsigned long long start_time = cpu_clock(cpu);
+#endif /* CONFIG_SEC_DEBUG_IRQ_EXIT_LOG */
+
 	perf_mon_interrupt_in();
 	irq_enter();
 
@@ -92,6 +100,9 @@ void handle_IRQ(unsigned int irq, struct pt_regs *regs)
 	irq_finish(irq);
 
 	irq_exit();
+#ifdef CONFIG_SEC_DEBUG_IRQ_EXIT_LOG
+	sec_debug_irq_enterexit_log(irq, start_time);
+#endif /* CONFIG_SEC_DEBUG_IRQ_EXIT_LOG */
 	set_irq_regs(old_regs);
 	perf_mon_interrupt_out();
 }

@@ -36,8 +36,17 @@
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <mach/msm_serial_pdata.h>
+#include <linux/kernel.h>
+#include <linux/workqueue.h>
+#include <linux/slab.h>
+#include <linux/module.h>
+
 #include "msm_serial.h"
 
+#ifdef CONFIG_SERIAL_MSM_UART_WAKEUP_BY_GPIO
+#include <linux/wakelock.h>
+#define DPRINT(x...)	printk(KERN_ERR "UART_WAKEUP " x)
+#endif
 
 #ifdef CONFIG_SERIAL_MSM_CLOCK_CONTROL
 enum msm_clk_states_e {
@@ -60,6 +69,21 @@ struct msm_wakeup {
 };
 #endif
 
+#ifdef CONFIG_SERIAL_MSM_UART_WAKEUP_BY_GPIO
+/* optional low power wakeup, typically on a GPIO RX irq */
+struct msm_uart_wakeup {
+	int irq;  /* < 0 indicates low power wakeup disabled */
+	unsigned char ignore;  /* bool */
+
+	/* bool: inject char into rx tty on wakeup */
+	unsigned char inject_rx;
+	char rx_to_inject;
+	unsigned int wakeup_set;
+	struct wake_lock wake_lock; /* Keep a wake lock */	
+};
+#endif
+
+
 struct msm_port {
 	struct uart_port	uart;
 	char			name[16];
@@ -73,8 +97,19 @@ struct msm_port {
 #ifdef CONFIG_SERIAL_MSM_RX_WAKEUP
 	struct msm_wakeup wakeup;
 #endif
+#ifdef CONFIG_SERIAL_MSM_UART_WAKEUP_BY_GPIO
+	struct msm_uart_wakeup wakeupbygpio;
+#endif
 	int			uim;
 };
+
+#if	defined(CONFIG_MACH_BAFFIN_DUOS_CTC) || defined(CONFIG_MACH_INFINITE_DUOS_CTC)
+struct msm_uart1_wq {
+	struct delayed_work work_q;
+	struct msm_serial_platform_data *pdata;
+	struct list_head entry;
+};
+#endif
 
 #define UART_TO_MSM(uart_port)	((struct msm_port *) uart_port)
 #define is_console(port)	((port)->cons && \
@@ -294,6 +329,10 @@ static void handle_rx(struct uart_port *port)
 	}
 
 	tty_flip_buffer_push(tty);
+#ifdef CONFIG_SERIAL_MSM_UART_WAKEUP_BY_GPIO
+	struct msm_port *msm_port = UART_TO_MSM(port);
+	msm_port->wakeupbygpio.ignore = 1;	
+#endif
 }
 
 static void handle_tx(struct uart_port *port)
@@ -638,6 +677,7 @@ static void msm_shutdown(struct uart_port *port)
 #ifndef CONFIG_PM_RUNTIME
 	msm_deinit_clock(port);
 #endif
+
 	pm_runtime_put_sync(port->dev);
 }
 
@@ -726,6 +766,9 @@ static void msm_release_port(struct uart_port *port)
 	struct platform_device *pdev = to_platform_device(port->dev);
 	struct resource *resource;
 	resource_size_t size;
+#ifdef CONFIG_SERIAL_MSM_UART_WAKEUP_BY_GPIO
+		struct msm_port *msm_port = UART_TO_MSM(port);
+#endif	
 
 	resource = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (unlikely(!resource))
@@ -735,6 +778,14 @@ static void msm_release_port(struct uart_port *port)
 	release_mem_region(port->mapbase, size);
 	iounmap(port->membase);
 	port->membase = NULL;
+
+#ifdef CONFIG_SERIAL_MSM_UART_WAKEUP_BY_GPIO
+	/* Free Wake UP IRQ */
+	if (msm_port->wakeupbygpio.irq > 0) {
+		free_irq(msm_port->wakeupbygpio.irq, msm_port);
+		msm_port->wakeupbygpio.irq = -1;	
+	}
+#endif
 }
 
 static int msm_request_port(struct uart_port *port)
@@ -849,13 +900,32 @@ static struct msm_port msm_uart_ports[] = {
 	},
 };
 
-#define UART_NR	ARRAY_SIZE(msm_uart_ports)
-
+#define UART_NR 256
 static inline struct uart_port * get_port_from_line(unsigned int line)
 {
 	return &msm_uart_ports[line].uart;
 }
 
+#if defined(CONFIG_MACH_BAFFIN_DUOS_CTC) || defined(CONFIG_MACH_INFINITE_DUOS_CTC)
+static void msm_uart1_init_work(struct work_struct *work)
+{
+	struct delayed_work *dw = container_of(work, struct delayed_work, work);
+	struct msm_uart1_wq *wq = container_of(dw, struct msm_uart1_wq, work_q);
+	struct msm_serial_platform_data *pdata = wq->pdata;	
+
+	/*
+	 * Set GPIO alternate function to use UARTn, pje_FA04
+	 */
+	if (pdata && pdata->gpio_config) {
+		if (unlikely(pdata->gpio_config(1)))
+			printk(KERN_ERR "Cannot configure gpios\n");
+	}
+
+	/*
+	 * Set using console or not, pje_FA16
+	 */
+}
+#endif
 #ifdef CONFIG_SERIAL_MSM_CONSOLE
 
 /*
@@ -997,14 +1067,47 @@ static struct uart_driver msm_uart_driver = {
 	.cons = MSM_CONSOLE,
 };
 
+#ifdef CONFIG_SERIAL_MSM_UART_WAKEUP_BY_GPIO
+static irqreturn_t msm_wakeup_isr(int irq, void *dev)
+{
+	unsigned int wakeup = 0;
+	struct msm_port *msm_port = (struct msm_port *)dev;
+	const unsigned long WAKE_LOCK_EXPIRE_TIME = HZ;
+	/* let it expire within 1 sec */
+
+	if (msm_port->wakeupbygpio.ignore)
+		msm_port->wakeupbygpio.ignore = 0;
+	else
+		wakeup = 1;
+
+	if (wakeup) {
+		/* let it self expire */
+		wake_lock_timeout(&msm_port->wakeupbygpio.wake_lock,
+					WAKE_LOCK_EXPIRE_TIME*3);
+	}
+	return IRQ_HANDLED;
+}
+#endif
+
 static int __init msm_serial_probe(struct platform_device *pdev)
 {
 	struct msm_port *msm_port;
 	struct resource *resource;
 	struct uart_port *port;
 	int irq;
-#ifdef CONFIG_SERIAL_MSM_RX_WAKEUP
+#if defined(CONFIG_MACH_BAFFIN_DUOS_CTC) || defined(CONFIG_MACH_INFINITE_DUOS_CTC)
+	struct msm_uart1_wq *wq;
+#endif
+#if defined(CONFIG_MACH_ARUBA_DUOS_CTC) || defined(CONFIG_MACH_INFINITE_DUOS_CTC) || defined(CONFIG_MACH_KYLEPLUS_CTC) || defined(CONFIG_MACH_BAFFIN_DUOS_CTC) \
+	|| defined(CONFIG_MACH_DELOS_DUOS_CTC) || defined(CONFIG_MACH_HENNESSY_DUOS_CTC)
 	struct msm_serial_platform_data *pdata = pdev->dev.platform_data;
+#else
+#ifdef CONFIG_SERIAL_MSM_UART_WAKEUP_BY_GPIO
+	int ret;
+	struct msm_serial_platform_data *pdata = pdev->dev.platform_data;
+#else
+	struct msm_serial_platform_data *pdata = pdev->dev.platform_data;
+#endif
 #endif
 
 	if (unlikely(pdev->id < 0 || pdev->id >= UART_NR))
@@ -1012,11 +1115,50 @@ static int __init msm_serial_probe(struct platform_device *pdev)
 
 	printk(KERN_INFO "msm_serial: detected port #%d\n", pdev->id);
 
+#if defined(CONFIG_MACH_ARUBA_DUOS_CTC) || defined(CONFIG_MACH_INFINITE_DUOS_CTC) || defined(CONFIG_MACH_KYLEPLUS_CTC) || defined(CONFIG_MACH_BAFFIN_DUOS_CTC) \
+	|| defined(CONFIG_MACH_DELOS_DUOS_CTC) || defined(CONFIG_MACH_HENNESSY_DUOS_CTC)
+#if defined(CONFIG_MACH_ARUBA_DUOS_CTC) || defined(CONFIG_MACH_KYLEPLUS_CTC) || defined(CONFIG_MACH_DELOS_DUOS_CTC) || defined(CONFIG_MACH_HENNESSY_DUOS_CTC)
+	/*
+	 * Set GPIO alternate function to use UARTn, pje_FA04
+	 */
+	if (pdata && pdata->gpio_config)	{
+		if (unlikely(pdata->gpio_config(1)))
+			printk(KERN_ERR "Cannot configure gpios\n");
+	}
+
+	/*
+	 * Set using console or not, pje_FA16
+	 */
+#elif defined(CONFIG_MACH_BAFFIN_DUOS_CTC) || defined(CONFIG_MACH_INFINITE_DUOS_CTC)
+	/* run work queue */
+	wq = kmalloc(sizeof(struct msm_uart1_wq), GFP_ATOMIC);
+	if (wq) {
+		wq->pdata = pdata;
+		INIT_DELAYED_WORK(&wq->work_q, msm_uart1_init_work);
+		schedule_delayed_work(&wq->work_q, msecs_to_jiffies(4500));
+	} else {
+		printk(KERN_ERR "Cannot allocate memory for workqueue\n");
+	}
+#endif
+#if 0	//ygil.Yang temp	 
+	if (pdata && pdata->use_console == 0)	{
+		msm_uart_driver.cons = NULL;
+#ifdef CONFIG_SERIAL_MSM_CONSOLE
+		unregister_console(&msm_console);
+#endif
+	}
+#endif
+#endif	
+
 	port = get_port_from_line(pdev->id);
 	port->dev = &pdev->dev;
 	msm_port = UART_TO_MSM(port);
 
+#if defined(CONFIG_MACH_ROY_DTV)
+	msm_port->clk = clk_get(&pdev->dev, "uart_clk");
+#else
 	msm_port->clk = clk_get(&pdev->dev, "core_clk");
+#endif
 	if (unlikely(IS_ERR(msm_port->clk)))
 		return PTR_ERR(msm_port->clk);
 	port->uartclk = clk_get_rate(msm_port->clk);
@@ -1034,6 +1176,30 @@ static int __init msm_serial_probe(struct platform_device *pdev)
 	port->irq = irq;
 
 	platform_set_drvdata(pdev, port);
+
+#ifdef CONFIG_SERIAL_MSM_UART_WAKEUP_BY_GPIO
+	if (pdata == NULL)
+		msm_port->wakeupbygpio.irq = -1;
+	else {	
+		msm_port->wakeupbygpio.irq = pdata->wakeup_irq;
+		msm_port->wakeupbygpio.ignore = 1;
+		msm_port->wakeupbygpio.inject_rx =0; 
+		msm_port->wakeupbygpio.rx_to_inject = pdata->rx_to_inject;
+
+		wake_lock_init(&msm_port->wakeupbygpio.wake_lock,
+			WAKE_LOCK_SUSPEND, "msm_serial_wakeup");		
+
+		ret = request_irq(msm_port->wakeupbygpio.irq, msm_wakeup_isr,
+			IRQF_TRIGGER_FALLING, "msm_serial_wakeup", msm_port);		
+
+		if (unlikely(ret)) {
+			pr_err("%s: failed to request wakeup_irq\n", __func__);
+			return ret;
+		}
+
+		disable_irq(msm_port->wakeupbygpio.irq);		
+	}
+#endif
 
 
 #ifdef CONFIG_SERIAL_MSM_RX_WAKEUP
@@ -1058,6 +1224,8 @@ static int __init msm_serial_probe(struct platform_device *pdev)
 #endif
 
 	pm_runtime_enable(port->dev);
+	if (pdata != NULL && pdata->userid && pdata->userid <= UART_NR)
+		port->line = pdata->userid;
 	return uart_add_one_port(&msm_uart_driver, port);
 }
 
@@ -1098,6 +1266,18 @@ static int __devexit msm_serial_remove(struct platform_device *pdev)
 {
 	struct msm_port *msm_port = platform_get_drvdata(pdev);
 
+#if defined(CONFIG_MACH_ARUBA_DUOS_CTC) || defined(CONFIG_MACH_INFINITE_DUOS_CTC) || defined(CONFIG_MACH_KYLEPLUS_CTC) || defined(CONFIG_MACH_BAFFIN_DUOS_CTC) \
+	|| defined(CONFIG_MACH_DELOS_DUOS_CTC) || defined(CONFIG_MACH_HENNESSY_DUOS_CTC)
+	struct msm_serial_platform_data *pdata = pdev->dev.platform_data;
+
+	/*
+	 * Set GPIO alternate function to use UARTn, pje_FA04
+	 */
+	if (pdata && pdata->gpio_config)	{
+		if (unlikely(pdata->gpio_config(0)))
+			printk(KERN_ERR "GPIO config error\n");
+	}
+#endif
 	pm_runtime_put_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 
@@ -1112,11 +1292,26 @@ static int msm_serial_suspend(struct device *dev)
 	struct uart_port *port;
 	struct platform_device *pdev = to_platform_device(dev);
 	port = get_port_from_line(pdev->id);
+#ifdef CONFIG_SERIAL_MSM_UART_WAKEUP_BY_GPIO
+		struct msm_port *msm_port = UART_TO_MSM(port);
+#endif	
 
 	if (port) {
 		uart_suspend_port(&msm_uart_driver, port);
+/* When using UART1, to save sleep current, we should deinit uart1 clock */
+#if !defined(CONFIG_MACH_ROY_DTV)
 		if (is_console(port))
+#endif
 			msm_deinit_clock(port);
+
+#ifdef CONFIG_SERIAL_MSM_UART_WAKEUP_BY_GPIO
+	if (msm_port->wakeupbygpio.irq > 0) {		
+		enable_irq_wake(msm_port->wakeupbygpio.irq);
+		enable_irq(msm_port->wakeupbygpio.irq);
+		msm_port->wakeupbygpio.wakeup_set = 1;
+}
+#endif
+
 	}
 
 	return 0;
@@ -1127,13 +1322,25 @@ static int msm_serial_resume(struct device *dev)
 	struct uart_port *port;
 	struct platform_device *pdev = to_platform_device(dev);
 	port = get_port_from_line(pdev->id);
+#ifdef CONFIG_SERIAL_MSM_UART_WAKEUP_BY_GPIO 
+	struct msm_port *msm_port = UART_TO_MSM(port);
+#endif
 
 	if (port) {
+#if !defined(CONFIG_MACH_ROY_DTV)
 		if (is_console(port))
+#endif
 			msm_init_clock(port);
 		uart_resume_port(&msm_uart_driver, port);
-	}
 
+#ifdef CONFIG_SERIAL_MSM_UART_WAKEUP_BY_GPIO
+	if(msm_port->wakeupbygpio.wakeup_set&&msm_port->wakeupbygpio.irq > 0){
+		if (!msm_port->wakeupbygpio.wakeup_set) return 0;
+		disable_irq_wake(msm_port->wakeupbygpio.irq);
+		disable_irq(msm_port->wakeupbygpio.irq);
+		}
+#endif		
+	}
 	return 0;
 }
 #else

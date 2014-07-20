@@ -12,15 +12,6 @@
 
 #include <asm/hardware/cache-l2x0.h>
 
-/* Add 300 NOPs after 'wfi' for 8x25 target */
-.macro DELAY_8x25, rept
-#ifdef CONFIG_ARCH_MSM8625
-	.rept   \rept
-	nop
-	.endr
-#endif
-.endm
-
 /* Switch between smp_to_amp/amp_to_smp configuration */
 .macro SET_SMP_COHERENCY, on = 0
 	ldr     r0, =target_type
@@ -150,4 +141,170 @@ skip_suspend\@:
 	str     r2, [r1, #L2X0_PREFETCH_CTRL]
 	DO_CACHE_OPERATION L2X0_INV_WAY ON
 skip_resume\@:
+.endm
+
+.macro WRITE_SMEM, addr, val
+	ldr     r0, =apps_power_collapse
+	ldr	r0, [r0]
+	cmp     r0, #POWER_COLLAPSED
+	bne	dont_write_smem
+	ldr	r0, =\addr
+	ldr	r0, [r0]
+	mov	r1, #\val
+	str	r1, [r0, #0xC]
+dont_write_smem:
+.endm
+
+.macro MARKER, addr, spc_val, pc_val, on
+	.if \on
+	stmfd   sp!, {r5, r6}
+	.endif
+	ldr     r5, =\addr
+	.if \on
+	ldr     r5, [r5]
+	.endif
+	mrc     p15, 0, r6, c0, c0, 5
+	and	r6, r6, #0x3
+	teq     r6, #0x1
+	beq     core1\@
+	teq     r6, #0x2
+	beq     core2\@
+	teq     r6, #0x3
+	beq     core3\@
+
+	ldr     r6, [r5, #0x34]
+	cmp     r6, #0x1
+	beq     log_for_pc\@ /* CORE0 is doing PC */
+	mov     r6, #\spc_val
+	str     r6, [r5, #0x10]
+	b       exit\@
+core1\@:
+	mov     r6, #\spc_val
+	str     r6, [r5, #0x14]
+	b       exit\@
+core2\@:
+	mov     r6, #\spc_val
+	str     r6, [r5, #0x18]
+	b       exit\@
+core3\@:
+	mov     r6, #\spc_val
+	str     r6, [r5, #0x1C]
+	b       exit\@
+log_for_pc\@:
+	mov     r6, #\pc_val
+	str     r6, [r5, #0x30]
+exit\@:
+	.if \on
+	ldmfd   sp!, {r5, r6}
+	.endif
+.endm
+
+.macro	DUMP_SPM_REG, addr
+	stmfd	sp!, {r5, r6}
+	mrc     p15, 0, r6, c0, c0, 5
+	and     r6, r6, #0x3
+	teq     r6, #0x1
+	beq     core1\@
+	teq     r6, #0x2
+	beq     core2\@
+	teq     r6, #0x3
+	beq     core3\@
+
+	/*
+	 * SAW2_CFG (0x8)
+	 */
+	ldr	r5, =spm0_base_addr
+	ldr	r5, [r5]
+	ldr	r6, [r5, #0x8]
+	ldr	r5, =\addr
+	ldr     r5, [r5]
+	str	r6, [r5, #0x50]
+
+	/*
+	 * SAW2_SPM_CTL (0x20)
+	 */
+	ldr     r5, =spm0_base_addr
+	ldr     r5, [r5]
+	ldr     r6, [r5, #0x20]
+	ldr     r5, =\addr
+	ldr     r5, [r5]
+	str     r6, [r5, #0x54]
+
+	/*
+	 * APPS_PWRDOWN
+	 */
+	ldr     r5, =apps_pwr_dwn
+	ldr     r5, [r5]
+	ldr     r6, [r5]
+	ldr     r5, =\addr
+	ldr     r5, [r5]
+	str     r6, [r5, #0x58]
+
+	b	 exit\@
+core1\@:
+	/*
+	 * SAW2_CFG (0x8)
+	 */
+	ldr	r5, =spm1_base_addr
+	ldr	r5, [r5]
+	ldr	r6, [r5, #0x8]
+	ldr	r5, =\addr
+	ldr     r5, [r5]
+	str	r6, [r5, #0x60]
+
+	/*
+	 * SAW2_SPM_CTL (0x20)
+	 */
+	ldr     r5, =spm1_base_addr
+	ldr     r5, [r5]
+	ldr     r6, [r5, #0x20]
+	ldr     r5, =\addr
+	ldr     r5, [r5]
+	str     r6, [r5, #0x64]
+	b	 exit\@
+
+core2\@:
+	/*
+	 * SAW2_CFG (0x8)
+	 */
+	ldr	r5, =spm2_base_addr
+	ldr	r5, [r5]
+	ldr	r6, [r5, #0x8]
+	ldr	r5, =\addr
+	ldr     r5, [r5]
+	str	r6, [r5, #0x70]
+
+	/*
+	 * SAW2_SPM_CTL (0x20)
+	 */
+	ldr     r5, =spm2_base_addr
+	ldr     r5, [r5]
+	ldr     r6, [r5, #0x20]
+	ldr     r5, =\addr
+	ldr     r5, [r5]
+	str     r6, [r5, #0x74]
+	b	 exit\@
+core3\@:
+	/*
+	 * SAW2_CFG (0x8)
+	 */
+	ldr	r5, =spm3_base_addr
+	ldr	r5, [r5]
+	ldr	r6, [r5, #0x8]
+	ldr	r5, =\addr
+	ldr     r5, [r5]
+	str	r6, [r5, #0x80]
+
+	/*
+	 * SAW2_SPM_CTL (0x20)
+	 */
+	ldr     r5, =spm3_base_addr
+	ldr     r5, [r5]
+	ldr     r6, [r5, #0x20]
+	ldr     r5, =\addr
+	ldr     r5, [r5]
+	str     r6, [r5, #0x84]
+	b	 exit\@
+exit\@:
+	ldmfd	sp!, {r5, r6}
 .endm

@@ -393,9 +393,7 @@ static void hci_conn_idle(unsigned long arg)
 
 	BT_DBG("conn %p mode %d", conn, conn->mode);
 
-	hci_dev_lock(conn->hdev);
 	hci_conn_enter_sniff_mode(conn);
-	hci_dev_unlock(conn->hdev);
 }
 
 static void hci_conn_rssi_update(struct work_struct *work)
@@ -953,9 +951,6 @@ void hci_conn_enter_active_mode(struct hci_conn *conn, __u8 force_active)
 	if (test_bit(HCI_RAW, &hdev->flags))
 		return;
 
-	if (conn->type == LE_LINK)
-		return;
-
 	if (conn->mode != HCI_CM_SNIFF)
 		goto timer;
 
@@ -1021,9 +1016,6 @@ void hci_conn_enter_sniff_mode(struct hci_conn *conn)
 	BT_DBG("conn %p mode %d", conn, conn->mode);
 
 	if (test_bit(HCI_RAW, &hdev->flags))
-		return;
-
-	if (conn->type == LE_LINK)
 		return;
 
 	if (!lmp_sniff_capable(hdev) || !lmp_sniff_capable(conn))

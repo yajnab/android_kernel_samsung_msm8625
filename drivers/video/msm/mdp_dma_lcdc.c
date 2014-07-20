@@ -143,7 +143,7 @@ int mdp_lcdc_on(struct platform_device *pdev)
 
 	buf += calc_fb_offset(mfd, fbi, bpp);
 
-	dma2_cfg_reg = DMA_PACK_ALIGN_LSB | DMA_OUT_SEL_LCDC;
+	dma2_cfg_reg = DMA_PACK_ALIGN_LSB | DMA_DITHER_EN | DMA_OUT_SEL_LCDC;
 
 	if (mfd->fb_imgType == MDP_BGR_565)
 		dma2_cfg_reg |= DMA_PACK_PATTERN_BGR;
@@ -270,8 +270,8 @@ int mdp_lcdc_on(struct platform_device *pdev)
 
 	lcdc_underflow_clr |= 0x80000000;	/* enable recovery */
 #else
-	hsync_polarity = 0;
-	vsync_polarity = 0;
+	hsync_polarity = 1;
+	vsync_polarity = 1;
 #endif
 	data_en_polarity = 0;
 
@@ -311,7 +311,9 @@ int mdp_lcdc_on(struct platform_device *pdev)
 		MDP_OUTP(MDP_BASE + timer_base + 0x38, active_v_end);
 	}
 
+#if !defined(CONFIG_MACH_NEVIS3G_REV03)
 	ret = panel_next_on(pdev);
+#endif
 	if (ret == 0) {
 		/* enable LCDC block */
 		MDP_OUTP(MDP_BASE + timer_base, 1);
@@ -333,6 +335,11 @@ int mdp_lcdc_on(struct platform_device *pdev)
 		pr_debug("%s: kobject_uevent(KOBJ_ADD)\n", __func__);
 		vsync_cntrl.sysfs_created = 1;
 	}
+	mdp_histogram_ctrl_all(TRUE);
+
+#if defined(CONFIG_MACH_NEVIS3G_REV03)
+	ret = panel_next_on(pdev);
+#endif
 
 	return ret;
 }
@@ -352,6 +359,7 @@ int mdp_lcdc_off(struct platform_device *pdev)
 		timer_base = DTV_BASE;
 	}
 #endif
+	mdp_histogram_ctrl_all(FALSE);
 
 	down(&mfd->dma->mutex);
 	/* MDP cmd block enable */
@@ -385,20 +393,21 @@ void mdp_dma_lcdc_vsync_ctrl(int enable)
 		INIT_COMPLETION(vsync_cntrl.vsync_wait);
 
 	vsync_cntrl.vsync_irq_enabled = enable;
-	if (!enable)
-		vsync_cntrl.disabled_clocks = 0;
 	disabled_clocks = vsync_cntrl.disabled_clocks;
 	spin_unlock_irqrestore(&mdp_spin_lock, flag);
 
-	if (enable && disabled_clocks) {
+	if (enable && disabled_clocks)
 		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
-		spin_lock_irqsave(&mdp_spin_lock, flag);
+
+	spin_lock_irqsave(&mdp_spin_lock, flag);
+	if (enable && vsync_cntrl.disabled_clocks) {
 		outp32(MDP_INTR_CLEAR, LCDC_FRAME_START);
 		mdp_intr_mask |= LCDC_FRAME_START;
 		outp32(MDP_INTR_ENABLE, mdp_intr_mask);
 		mdp_enable_irq(MDP_VSYNC_TERM);
-		spin_unlock_irqrestore(&mdp_spin_lock, flag);
+		vsync_cntrl.disabled_clocks = 0;
 	}
+	spin_unlock_irqrestore(&mdp_spin_lock, flag);
 
 	if (vsync_cntrl.vsync_irq_enabled &&
 		atomic_read(&vsync_cntrl.suspend) == 0)

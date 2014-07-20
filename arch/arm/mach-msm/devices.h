@@ -299,6 +299,9 @@ extern struct platform_device fsm_xo_device;
 
 extern struct platform_device qfec_device;
 
+extern struct clk_lookup msm_clocks_7x27a_uart[];
+extern unsigned msm_num_clocks_7x27a_uart;
+
 extern struct platform_device msm_kgsl_3d0;
 extern struct platform_device msm_kgsl_2d0;
 extern struct platform_device msm_kgsl_2d1;

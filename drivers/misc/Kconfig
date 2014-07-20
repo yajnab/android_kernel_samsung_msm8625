@@ -506,6 +506,10 @@ config USB_SWITCH_FSA9480
 	  stereo and mono audio, video, microphone and UART data to use
 	  a common connector port.
 
+config SEC_DUAL_MODEM
+	tristate "Support dual modem"
+	default n
+	
 config MAX8997_MUIC
 	tristate "MAX8997 MUIC Support"
 	depends on MFD_MAX8997
@@ -642,6 +646,109 @@ config QFP_FUSE
 	  fuses. The ioctls provides the necessary interface
 	  to the fuse block. Currently this is supported only
 	  on FSM targets.
+config SAMSUNG_JACK
+	bool "3.5 PI EAR_JACK driver for Samsung devices"
+	depends on INPUT
+	default n
+	---help---
+	  This is 3.5 PI EAR_JACK driver for Samsung devices.	  
+
+config SAMSUNG_JACK_GNDLDET
+	bool "4 ploe EAR_JACK G-L detect driver"
+	default n
+	---help---
+	  This is 4 ploe EAR_JACK G-L detect driver for Samsung devices.
+
+config SAMSUNG_FM_SI4709
+    tristate "SI4709 FM radio driver for Samsung devices"
+    default n
+    ---help---
+     This is SI4709 FM radio driver for Samsung devices.
+
+     If unsure, say N.
+
+config FSAXXXX_USBSW
+	bool "Fairchild FSAxxxx USB switch Driver"
+	depends on I2C
+	default n
+
+config SEC_MISC
+	bool "Samsung P series miscellaneous driver"
+	default n
+	---help---
+	  Samsung P series miscellaneous driver
+
+config SEC_DEBUG
+	bool "Samsung Debug Code"
+	default n
+	---help---
+	  Samsung debug code
+
+config SEC_DEBUG_IRQ_EXIT_LOG
+	bool "Temporary Logging for IRQ delay"
+	depends on SEC_DEBUG
+	default n
+	help
+	  Verbose Logging for IRQ delay.
+
+config SEC_DEBUG_SCHED_LOG
+	bool "Samsung Scheduler Logging Feature"
+	depends on SEC_DEBUG
+	default n
+	help
+	  Samsung Scheduler Logging Feature for Debug use.
+
+config SEC_DEBUG_SEMAPHORE_LOG
+	bool "Samsung Semaphore Logging Feature"
+	depends on SEC_DEBUG
+	default n
+	help
+	  Samsung Semaphore Logging Feature for Debug use.
+	  Enables semaphore debugging statistics.
+	  Enables logging.
+	  This feature is enabled in defconfig.
+	  
+config SEC_DEBUG_USER
+ 	bool "Panic on Userspace fault"
+ 	default n
+ 	help
+	  Panic on Userspace fault
+
+config SEC_DEBUG_SUBSYS
+	bool "Debug subsystems"
+	default n
+	help
+	  Subsystems debug feature.
+	  When enabled provides kernel logs,
+	  Schedule and IRQ logs at the time of crash along with the
+	  reason for crash, which can be extracted as a html in RAM dump mode.
+	  
+config SEC_DEBUG_DOUBLE_FREE
+	bool "Enable double free detection"
+	default n
+	help
+	 Detect a erraneous codes that frees a kmalloced node
+	 twice. When kfree(p) is called, p is not freed right away.
+	 Instead, it is pushed into a circular buffer. What it frees
+	 is the oldest pointer that was pushed into the buffer.
+	 If someone tries to free the same pointer p, *p
+	 is read and checks for magic codes that is written
+	 when it was first freed. If it matches, the whole
+	 circular buffer is searched. Panic will happend when
+	 a match is found.	  
+	  
+config SEC_DUMP
+	bool "Samsung DUMP Code"
+	default n
+	---help---
+	  Samsung dump code
+
+config PN544
+        bool "NXP PN544 NFC Controller Driver"
+        default n
+        help
+          NXP PN544 Near Field Communication controller support.
+
 
 config USB_HSIC_SMSC_HUB
 	tristate "Support for HSIC based MSM on-chip SMSC3503 HUB"
@@ -661,4 +768,5 @@ source "drivers/misc/ti-st/Kconfig"
 source "drivers/misc/lis3lv02d/Kconfig"
 source "drivers/misc/carma/Kconfig"
 source "drivers/misc/altera-stapl/Kconfig"
+source "drivers/misc/modem_if/Kconfig"
 endmenu

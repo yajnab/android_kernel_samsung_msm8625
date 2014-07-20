@@ -288,6 +288,18 @@ config CHARGER_MAX8998
 	  Say Y to enable support for the battery charger control sysfs and
 	  platform data of MAX8998/LP3974 PMICs.
 
+config CHARGER_FAN54013
+	tristate "FAN54013 switching charger driver"
+	depends on I2C
+	help
+	  Say Y to enable support for FAN54013 switching charger.
+
+config CHARGER_BQ24157
+	tristate "BQ24157 switching charger driver"
+	depends on I2C
+	help
+	  Say Y to enable support for BQ24157 switching charger.
+
 config BATTERY_MSM
 	tristate "MSM battery"
 	depends on ARCH_MSM
@@ -343,6 +355,16 @@ config SMB349_CHARGER
 	  current limiting capabilities. The driver also lets the
 	  SMB349 be operated as a slave device via the power supply
 	  framework.
+
+config CHARGER_SMB328A
+	tristate "smb328a charger"
+	depends on I2C
+	help
+	  Say Y to enable support for the SMB328A switching mode based charger
+	  and sysfs. The driver supports controlling charger-enable and
+	  current limiting capabilities. The driver also lets the
+	  SMB328A be operated as a slave device via the power supply
+	  framework.	  
 
 config BATTERY_MSM_FAKE
 	tristate "Fake MSM battery"
@@ -434,4 +456,62 @@ config AB8500_BATTERY_THERM_ON_BATCTRL
 	help
 	  Say Y to enable battery temperature measurements using
 	  thermistor connected on BATCTRL ADC.
+
+config BQ27425_FUEL_GAUGE
+	tristate "TI BQ27425 Fuel Gauge"
+	depends on I2C
+	help
+	  BQ27425 is fuel-gauge systems for lithium-ion (Li+) batteries
+	  in handheld and portable equipment.
+	  
+config BATTERY_STC3115
+	tristate "STMicoelectronics STC3105 Fuel Gauge driver"
+	depends on I2C
+	default M
+	help
+	  STMicroelctronicsSTC3105 is a Fuel gauge system
+
+config BATTERY_STC3115_DELOS
+	tristate "STMicoelectronics STC3105 Fuel Gauge driver for DELOS battery"
+	depends on I2C
+	default M
+	help
+	  STMicroelctronicsSTC3105 is a Fuel gauge system
+
+config MAX17043_FUELGAUGE
+	tristate "Maxim MAX17043 Fuel Gauge"
+	depends on I2C
+	help
+	  MAX17043 is fuel-gauge systems for lithium-ion (Li+) batteries
+	  in handheld and portable equipment. The MAX17040 is configured
+	  to operate with a single lithium cell
+	  
+config MAX17048_FUELGAUGE
+	tristate "Maxim MAX17048 Fuel Gauge"
+	depends on I2C
+	help
+	  MAX17048 is fuel-gauge systems for lithium-ion (Li+) batteries
+	  in handheld and portable equipment "
+
+config MSM_BACKGROUND_CHARGING
+tristate "Background charging with inner charger"
+	depends on ARCH_MSM && BATTERY_MSM
+	default n
+	help
+	  Say Y to Background charge after 1st end of charging
+	  
+config MSM_BACKGROUND_CHARGING_EX_CHARGER
+tristate "Background charging with external charger"
+	depends on ARCH_MSM && BATTERY_MSM
+	default n
+	help
+	  Say Y to Background charge after 1st end of charging
+
+config MSM_BACKGROUND_CHARGING_EX_CHARGER_TIMER
+tristate "Background charging with external charger, its 2nd current cut off by timer"
+	depends on ARCH_MSM && BATTERY_MSM && MSM_BACKGROUND_CHARGING_EX_CHARGER
+	default n
+	help
+	  Say Y to Background charge after 1st end of charging
+
 endif # POWER_SUPPLY

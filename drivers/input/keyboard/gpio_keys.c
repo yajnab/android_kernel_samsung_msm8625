@@ -10,7 +10,6 @@
  */
 
 #include <linux/module.h>
-
 #include <linux/init.h>
 #include <linux/fs.h>
 #include <linux/interrupt.h>
@@ -29,6 +28,8 @@
 #include <linux/of_platform.h>
 #include <linux/of_gpio.h>
 #include <linux/spinlock.h>
+
+#include <linux/sec_debug.h>
 
 struct gpio_button_data {
 	const struct gpio_keys_button *button;
@@ -324,6 +325,7 @@ static struct attribute_group gpio_keys_attr_group = {
 	.attrs = gpio_keys_attrs,
 };
 
+extern unsigned int sec_key_pressed;
 static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 {
 	const struct gpio_keys_button *button = bdata->button;
@@ -332,12 +334,22 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 	int state = (gpio_get_value_cansleep(button->gpio) ? 1 : 0) ^ button->active_low;
 
 	if (type == EV_ABS) {
-		if (state)
+		if (state){
+			pr_info("[KEY] keycode : %d, %s, line %d\n",  button->code,  button->value ? "pressed" : "released", __LINE__);
 			input_event(input, type, button->code, button->value);
+			sec_key_pressed = (button->value);
+		}
 	} else {
+		pr_info("[KEY] keycode : %d, %d, line %d\n",  button->code, !!state , __LINE__);
 		input_event(input, type, button->code, !!state);
+		sec_key_pressed = (!!state);
 	}
 	input_sync(input);
+
+#if defined(CONFIG_SEC_DEBUG) && defined(CONFIG_SEC_DUMP)
+	if (dump_enable_flag != 0)
+		sec_check_crash_key(button->code, !!state);
+#endif /*CONFIG_SEC_DUMP*/
 }
 
 static void gpio_keys_gpio_work_func(struct work_struct *work)
@@ -378,6 +390,7 @@ static void gpio_keys_irq_timer(unsigned long _data)
 
 	spin_lock_irqsave(&bdata->lock, flags);
 	if (bdata->key_pressed) {
+		pr_info("[KEY] keycode : %d, %d, line %d\n",  bdata->button->code,  0 , __LINE__);
 		input_event(input, EV_KEY, bdata->button->code, 0);
 		input_sync(input);
 		bdata->key_pressed = false;
@@ -397,10 +410,12 @@ static irqreturn_t gpio_keys_irq_isr(int irq, void *dev_id)
 	spin_lock_irqsave(&bdata->lock, flags);
 
 	if (!bdata->key_pressed) {
+		pr_info("[KEY] keycode : %d, %d, line %d\n",  bdata->button->code,  1 , __LINE__);
 		input_event(input, EV_KEY, button->code, 1);
 		input_sync(input);
 
 		if (!bdata->timer_debounce) {
+			pr_info("[KEY] keycode : %d, %d, line %d\n",  bdata->button->code,  0 , __LINE__);
 			input_event(input, EV_KEY, button->code, 0);
 			input_sync(input);
 			goto out;

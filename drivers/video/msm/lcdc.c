@@ -179,24 +179,6 @@ static int lcdc_probe(struct platform_device *pdev)
 
 	if (pdev->id == 0) {
 		lcdc_pdata = pdev->dev.platform_data;
-		pixel_mdp_clk = clk_get(&pdev->dev, "mdp_clk");
-		if (IS_ERR(pixel_mdp_clk)) {
-			pr_err("Couldnt find pixel_mdp_clk\n");
-			return -EINVAL;
-		}
-
-		pixel_lcdc_clk = clk_get(&pdev->dev, "lcdc_clk");
-		if (IS_ERR(pixel_lcdc_clk)) {
-			pr_err("Couldnt find pixel_lcdc_clk\n");
-			return -EINVAL;
-		}
-
-#ifndef CONFIG_MSM_BUS_SCALING
-		ebi1_clk = clk_get(&pdev->dev, "mem_clk");
-		if (IS_ERR(ebi1_clk))
-			return PTR_ERR(ebi1_clk);
-#endif
-
 		return 0;
 	}
 
@@ -301,6 +283,29 @@ static int lcdc_register_driver(void)
 
 static int __init lcdc_driver_init(void)
 {
+	pixel_mdp_clk = clk_get(NULL, "pixel_mdp_clk");
+	if (IS_ERR(pixel_mdp_clk))
+		pixel_mdp_clk = NULL;
+
+	if (pixel_mdp_clk) {
+		pixel_lcdc_clk = clk_get(NULL, "pixel_lcdc_clk");
+		if (IS_ERR(pixel_lcdc_clk)) {
+			printk(KERN_ERR "Couldnt find pixel_lcdc_clk\n");
+			return -EINVAL;
+		}
+	} else {
+		pixel_mdp_clk = clk_get(NULL, "mdp_lcdc_pclk_clk");
+		if (IS_ERR(pixel_mdp_clk)) {
+			printk(KERN_ERR "Couldnt find mdp_lcdc_pclk_clk\n");
+			return -EINVAL;
+		}
+
+		pixel_lcdc_clk = clk_get(NULL, "mdp_lcdc_pad_pclk_clk");
+		if (IS_ERR(pixel_lcdc_clk)) {
+			printk(KERN_ERR "Couldnt find mdp_lcdc_pad_pclk_clk\n");
+			return -EINVAL;
+		}
+	}
 
 	return lcdc_register_driver();
 }

@@ -76,6 +76,16 @@ int32_t msm_camera_i2c_write(struct msm_camera_i2c_client *client,
 		S_I2C_DBG("%s byte %d: 0x%x\n", __func__, len, buf[len]);
 		len = 1;
 	} else if (client->addr_type == MSM_CAMERA_I2C_WORD_ADDR) {
+		if(addr == 0xFFFF){
+			if (data > 20)
+				msleep(data);
+			else
+				usleep_range(data*1000,
+					(data+1)*1000);
+
+			printk("###### delay [%d ms]\n", data);
+			return 0;
+		}
 		buf[0] = addr >> BITS_PER_BYTE;
 		buf[1] = addr;
 		S_I2C_DBG("%s byte %d: 0x%x\n", __func__, len, buf[len]);

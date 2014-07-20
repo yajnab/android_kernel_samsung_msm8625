@@ -48,6 +48,11 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/printk.h>
 
+#ifdef CONFIG_SEC_DEBUG
+#include <linux/sec_debug.h>
+#include <linux/io.h>
+#endif
+
 /*
  * Architectures can override it:
  */
@@ -172,6 +177,26 @@ void log_buf_kexec_setup(void)
 }
 #endif
 
+#ifdef CONFIG_APPLY_GA_SOLUTION
+/* Mark for GetLog */
+
+struct struct_kernel_log_mark {
+	u32 special_mark_1;
+	u32 special_mark_2;
+	u32 special_mark_3;
+	u32 special_mark_4;
+	void *p__log_buf;
+};
+
+static struct struct_kernel_log_mark kernel_log_mark = {
+	.special_mark_1 = (('*' << 24) | ('^' << 16) | ('^' << 8) | ('*' << 0)),
+	.special_mark_2 = (('I' << 24) | ('n' << 16) | ('f' << 8) | ('o' << 0)),
+	.special_mark_3 = (('H' << 24) | ('e' << 16) | ('r' << 8) | ('e' << 0)),
+	.special_mark_4 = (('k' << 24) | ('l' << 16) | ('o' << 8) | ('g' << 0)),
+	.p__log_buf = __log_buf+0x200000, 
+};
+#endif
+
 /* requested log_buf_len from kernel cmdline */
 static unsigned long __initdata new_log_buf_len;
 
@@ -189,6 +214,133 @@ static int __init log_buf_len_setup(char *str)
 }
 early_param("log_buf_len", log_buf_len_setup);
 
+#ifdef CONFIG_SEC_DEBUG
+#ifndef CONFIG_SEC_LOG_LAST_KMSG
+#define CONFIG_PRINTK_NOCACHE
+#endif
+/*
+ * Example usage: sec_log=256K@0x45000000
+ *
+ * In above case, log_buf size is 256KB and its physical base address
+ * is 0x45000000. Actually, *(int *)(base - 8) is log_magic and *(int
+ * *)(base - 4) is log_ptr. Therefore we reserve (size + 8) bytes from
+ * (base - 8)
+ */
+#define LOG_MAGIC 0x4d474f4c /* "LOGM" */
+
+/* These variables are also protected by logbuf_lock */
+static unsigned *sec_log_ptr;
+static char *sec_log_buf;
+static unsigned sec_log_size;
+
+#ifdef CONFIG_PRINTK_NOCACHE
+static unsigned sec_log_save_size;
+static unsigned long long sec_log_save_base;
+unsigned long long sec_log_reserve_base;
+unsigned sec_log_reserve_size;
+unsigned int *sec_log_irq_en;
+#endif
+static inline void emit_sec_log_char(char c)
+{
+	if (sec_log_buf && sec_log_ptr) {
+		sec_log_buf[*sec_log_ptr & (sec_log_size - 1)] = c;
+		(*sec_log_ptr)++;
+	}
+}
+
+
+#ifdef CONFIG_SEC_DEBUG_SUBSYS
+void sec_debug_subsys_set_kloginfo(unsigned int *idx_paddr,
+	unsigned int *log_paddr, unsigned int *size)
+{
+	*idx_paddr = (unsigned int)&log_end -
+	CONFIG_PAGE_OFFSET + CONFIG_PHYS_OFFSET;
+	*log_paddr = (unsigned int)__log_buf -
+		CONFIG_PAGE_OFFSET + CONFIG_PHYS_OFFSET;
+	*size = __LOG_BUF_LEN;
+}
+#endif
+
+
+#ifdef CONFIG_PRINTK_NOCACHE
+static int __init printk_remap_nocache(void)
+{
+	void __iomem *nocache_base = 0;
+	unsigned *sec_log_mag;
+	unsigned long flags;
+	unsigned start;
+	int rc = 0;
+
+	pr_err("%s: sec_log_save_size %d at sec_log_save_base 0x%x\n",
+	__func__, sec_log_save_size, (unsigned int)sec_log_save_base);
+	pr_err("%s: sec_log_reserve_size %d at sec_log_reserve_base 0x%x\n",
+	__func__, sec_log_reserve_size, (unsigned int)sec_log_reserve_base);
+
+	nocache_base = ioremap_nocache(sec_log_save_base - 4096,
+		sec_log_save_size + 8192);
+		nocache_base = nocache_base + 4096;
+
+	sec_log_mag = nocache_base - 8;
+	sec_log_ptr = nocache_base - 4;
+	sec_log_buf = nocache_base;
+	sec_log_size = sec_log_save_size;
+	sec_log_irq_en = nocache_base - 0xC ;
+
+	raw_spin_lock_irqsave(&logbuf_lock, flags);
+	if (*sec_log_mag != LOG_MAGIC) {
+		*sec_log_ptr = 0;
+		*sec_log_mag = LOG_MAGIC;
+	}
+
+	start = min(con_start, log_start);
+	while (start != log_end) {
+		emit_sec_log_char(__log_buf
+				  [start++ & (__LOG_BUF_LEN - 1)]);
+	}
+
+	raw_spin_unlock_irqrestore(&logbuf_lock, flags);
+	return rc;
+}
+#endif
+
+static int __init sec_log_setup(char *str)
+{
+	unsigned size = memparse(str, &str);
+
+/*
+	unsigned *sec_log_mag;
+	unsigned start;
+	unsigned long flags;
+*/
+
+	if (size && (size == roundup_pow_of_two(size)) && (*str == '@')) {
+		unsigned long long base = 0;
+		base = simple_strtoul(++str, &str, 0);
+
+#ifdef CONFIG_PRINTK_NOCACHE
+		sec_log_save_size = size;
+		sec_log_save_base = base;
+		sec_log_size = size;
+		sec_log_reserve_base = base - 8;
+		sec_log_reserve_size = size + 8;
+
+		return 1;
+#endif
+	}
+	return 1;
+}
+
+__setup("sec_log=", sec_log_setup);
+
+#else
+
+static inline void emit_sec_log_char(char c)
+{
+}
+
+#endif
+
+
 void __init setup_log_buf(int early)
 {
 	unsigned long flags;
@@ -204,7 +356,13 @@ void __init setup_log_buf(int early)
 
 		mem = memblock_alloc(new_log_buf_len, PAGE_SIZE);
 		if (!mem)
+		{
+#ifdef CONFIG_APPLY_GA_SOLUTION
+			/* Mark for GetLog */
+			kernel_log_mark.p__log_buf = __log_buf+0x200000;
+#endif
 			return;
+		}
 		new_log_buf = __va(mem);
 	} else {
 		new_log_buf = alloc_bootmem_nopanic(new_log_buf_len);
@@ -213,6 +371,10 @@ void __init setup_log_buf(int early)
 	if (unlikely(!new_log_buf)) {
 		pr_err("log_buf_len: %ld bytes not available\n",
 			new_log_buf_len);
+#ifdef CONFIG_APPLY_GA_SOLUTION
+			/* Mark for GetLog */
+		kernel_log_mark.p__log_buf = __log_buf+0x200000;
+#endif
 		return;
 	}
 
@@ -239,6 +401,11 @@ void __init setup_log_buf(int early)
 	pr_info("log_buf_len: %d\n", log_buf_len);
 	pr_info("early log buf free: %d(%d%%)\n",
 		free, (free * 100) / __LOG_BUF_LEN);
+
+#ifdef CONFIG_APPLY_GA_SOLUTION
+	/* Mark for GetLog */
+	kernel_log_mark.p__log_buf = __log_buf+0x200000;
+#endif
 }
 
 #ifdef CONFIG_BOOT_PRINTK_DELAY
@@ -714,6 +881,27 @@ static void call_console_drivers(unsigned start, unsigned end)
 	_call_console_drivers(start_print, end, msg_level);
 }
 
+#ifdef CONFIG_SEC_LOG_LAST_KMSG
+static void (*log_char_hook)(char c);
+
+void register_log_char_hook(void (*f) (char c))
+{
+	unsigned start;
+	unsigned long flags;
+
+	raw_spin_lock_irqsave(&logbuf_lock, flags);
+
+	start = min(con_start, log_start);
+	while (start != log_end)
+		f(__log_buf[start++ & (__LOG_BUF_LEN - 1)]);
+
+	log_char_hook = f;
+
+	raw_spin_unlock_irqrestore(&logbuf_lock, flags);
+}
+EXPORT_SYMBOL(register_log_char_hook);
+#endif
+
 static void emit_log_char(char c)
 {
 	LOG_BUF(log_end) = c;
@@ -724,6 +912,14 @@ static void emit_log_char(char c)
 		con_start = log_end - log_buf_len;
 	if (logged_chars < log_buf_len)
 		logged_chars++;
+
+#ifdef CONFIG_SEC_DEBUG
+	emit_sec_log_char(c);
+#endif
+#ifdef CONFIG_SEC_LOG_LAST_KMSG
+	if (log_char_hook)
+		log_char_hook(c);
+#endif
 }
 
 /*
@@ -754,6 +950,20 @@ static bool printk_time = 1;
 static bool printk_time = 0;
 #endif
 module_param_named(time, printk_time, bool, S_IRUGO | S_IWUSR);
+
+#if defined(CONFIG_PRINTK_CPU_ID)
+static int printk_cpu_id = 1;
+#else
+static int printk_cpu_id;
+#endif
+module_param_named(cpu, printk_cpu_id, int, S_IRUGO | S_IWUSR);
+
+#if defined(CONFIG_PRINTK_PID)
+static int printk_pid = 1;
+#else
+static int printk_pid;
+#endif
+module_param_named(pid, printk_pid, int, S_IRUGO | S_IWUSR);
 
 static bool always_kmsg_dump;
 module_param_named(always_kmsg_dump, always_kmsg_dump, bool, S_IRUGO | S_IWUSR);
@@ -999,6 +1209,29 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 					emit_log_char(*tp);
 				printed_len += tlen;
 			}
+		        if (printk_cpu_id) {
+			 /* Add the cpu id */
+				 char tbuf[10], *tp;
+				 unsigned tlen;
+
+				 tlen = sprintf(tbuf, "c%u ", printk_cpu);
+
+				 for (tp = tbuf; tp < tbuf + tlen; tp++)
+					 emit_log_char(*tp);
+				 printed_len += tlen;
+			 }
+
+			 if (printk_pid) {
+				 /* Add the current process id */
+				 char tbuf[10], *tp;
+				 unsigned tlen;
+
+				 tlen = sprintf(tbuf, "%6u ", current->pid);
+
+				 for (tp = tbuf; tp < tbuf + tlen; tp++)
+					 emit_log_char(*tp);
+				 printed_len += tlen;
+			 }
 
 			if (!*p)
 				break;
@@ -1013,7 +1246,7 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 	 * Try to acquire and then immediately release the
 	 * console semaphore. The release will do all the
 	 * actual magic (print out buffers, wake up klogd,
-	 * etc). 
+	 * etc).
 	 *
 	 * The console_trylock_for_printk() function
 	 * will release 'logbuf_lock' regardless of whether it
@@ -1875,4 +2108,7 @@ void kmsg_dump(enum kmsg_dump_reason reason)
 		dumper->dump(dumper, reason, s1, l1, s2, l2);
 	rcu_read_unlock();
 }
+#ifdef CONFIG_PRINTK_NOCACHE
+module_init(printk_remap_nocache);
+#endif
 #endif

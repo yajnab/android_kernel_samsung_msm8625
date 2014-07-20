@@ -504,6 +504,12 @@ static void ipi_cpu_stop(unsigned int cpu)
 		raw_spin_lock(&stop_lock);
 		printk(KERN_CRIT "CPU%u: stopping\n", cpu);
 		dump_stack();
+#if defined(CONFIG_SEC_DEBUG)
+		do {
+			extern void sec_save_final_context(void);
+			sec_save_final_context();
+		} while (0);
+#endif
 		raw_spin_unlock(&stop_lock);
 	}
 
@@ -540,8 +546,11 @@ void smp_send_all_cpu_backtrace(void)
 	pr_info("Backtrace for cpu %d (current):\n", this_cpu);
 	dump_stack();
 
-	pr_info("\nsending IPI to all other CPUs:\n");
-	smp_cross_call(&backtrace_mask, IPI_CPU_BACKTRACE);
+	if (!cpus_empty(backtrace_mask))
+	{
+		pr_info("\nsending IPI to all other CPUs:\n");
+		smp_cross_call(&backtrace_mask, IPI_CPU_BACKTRACE);
+	}
 
 	/* Wait for up to 10 seconds for all other CPUs to do the backtrace */
 	for (i = 0; i < 10 * 1000; i++) {

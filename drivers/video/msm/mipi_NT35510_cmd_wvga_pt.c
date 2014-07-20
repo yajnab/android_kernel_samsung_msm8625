@@ -65,6 +65,9 @@ static int mipi_cmd_nt35510_wvga_pt_init(void)
 	pinfo.lcd.vsync_enable = TRUE;
 	pinfo.lcd.hw_vsync_mode = TRUE;
 	pinfo.lcd.refx100 = 6000; /* adjust refx100 to prevent tearing */
+	pinfo.lcd.v_back_porch = 7;
+	pinfo.lcd.v_front_porch = 50;
+	pinfo.lcd.v_pulse_width = 1;
 
 	pinfo.mipi.mode = DSI_CMD_MODE;
 	pinfo.mipi.dst_format = DSI_CMD_DST_FORMAT_RGB888;
@@ -90,7 +93,7 @@ static int mipi_cmd_nt35510_wvga_pt_init(void)
 	ret = mipi_nt35510_device_register(&pinfo, MIPI_DSI_PRIM,
 						MIPI_DSI_PANEL_WVGA_PT);
 	if (ret)
-		pr_err("%s: failed to register device!\n", __func__);
+		pr_err("%s: failed to register device!err[%d]\n", __func__, ret);
 
 	return ret;
 }

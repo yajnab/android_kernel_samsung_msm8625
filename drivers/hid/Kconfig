@@ -31,11 +31,6 @@ config HID
 
 	  If unsure, say Y.
 
-config HID_BATTERY_STRENGTH
-	bool
-	depends on HID && POWER_SUPPLY && HID = POWER_SUPPLY
-	default n
-
 config HIDRAW
 	bool "/dev/hidraw raw HID device support"
 	depends on HID
@@ -177,20 +172,6 @@ config HID_EZKEY
 	---help---
 	Support for Ezkey BTC 8193 keyboard.
 
-config HID_HOLTEK
-	tristate "Holtek On Line Grip based game controller support"
-	depends on USB_HID
-	---help---
-	  Say Y here if you have a Holtek On Line Grip based game controller.
-
-config HOLTEK_FF
-	bool "Holtek On Line Grip force feedback support"
-	depends on HID_HOLTEK
-	select INPUT_FF_MEMLESS
-	---help---
-	  Say Y here if you have a Holtek On Line Grip based game controller
-	  and want to have force feedback support for it.
-
 config HID_KEYTOUCH
 	tristate "Keytouch HID devices"
 	depends on USB_HID
@@ -200,14 +181,11 @@ config HID_KEYTOUCH
 		- Keytouch IEC 60945
 
 config HID_KYE
-	tristate "KYE/Genius devices"
+	tristate "Kye/Genius Ergo Mouse" if EXPERT
 	depends on USB_HID
+	default !EXPERT
 	---help---
-	Support for KYE/Genius devices not fully compliant with HID standard:
-	- Ergo Mouse
-	- EasyPen i405X tablet
-	- MousePen i608X tablet
-	- EasyPen M610X tablet
+	Support for Kye/Genius Ergo Mouse.
 
 config HID_UCLOGIC
 	tristate "UC-Logic"
@@ -253,17 +231,6 @@ config HID_LOGITECH
 	---help---
 	Support for Logitech devices that are not fully compliant with HID standard.
 
-config HID_LOGITECH_DJ
-	tristate "Logitech Unifying receivers full support"
-	depends on HID_LOGITECH
-	default m
-	---help---
-	Say Y if you want support for Logitech Unifying receivers and devices.
-	Unifying receivers are capable of pairing up to 6 Logitech compliant
-	devices to the same receiver. Without this driver it will be handled by
-	generic USB_HID driver and all incomming events will be multiplexed
-	into a single mouse and a single keyboard device.
-
 config LOGITECH_FF
 	bool "Logitech force feedback support"
 	depends on HID_LOGITECH
@@ -297,21 +264,13 @@ config LOGIG940_FF
 	  Say Y here if you want to enable force feedback support for Logitech
 	  Flight System G940 devices.
 
-config LOGIWHEELS_FF
-	bool "Logitech wheels configuration and force feedback support"
+config LOGIWII_FF
+	bool "Logitech Speed Force Wireless force feedback support"
 	depends on HID_LOGITECH
 	select INPUT_FF_MEMLESS
-	default LOGITECH_FF
 	help
-	  Say Y here if you want to enable force feedback and range setting
-	  support for following Logitech wheels:
-	  - Logitech Driving Force
-	  - Logitech Driving Force Pro
-	  - Logitech Driving Force GT
-	  - Logitech G25
-	  - Logitech G27
-	  - Logitech MOMO/MOMO 2
-	  - Logitech Formula Force EX
+	  Say Y here if you want to enable force feedback support for Logitech
+	  Speed Force Wireless (Wii) devices.
 
 config HID_MAGICMOUSE
 	tristate "Apple MagicMouse multi-touch support"
@@ -345,7 +304,6 @@ config HID_MULTITOUCH
 	  Say Y here if you have one of the following devices:
 	  - 3M PCT touch screens
 	  - ActionStar dual touch panels
-	  - Atmel panels
 	  - Cando dual touch panels
 	  - Chunghwa panels
 	  - CVTouch panels
@@ -359,18 +317,12 @@ config HID_MULTITOUCH
 	  - LG Display panels (Dell ST2220Tc)
 	  - Lumio CrystalTouch panels
 	  - MosArt dual-touch panels
-	  - Panasonic multitouch panels
 	  - PenMount dual touch panels
-	  - Perixx Peripad 701 touchpad
-	  - PixArt optical touch screen
 	  - Pixcir dual touch panels
-	  - Quanta panels
 	  - eGalax dual-touch panels, including the Joojoo and Wetab tablets
 	  - Stantum multitouch panels
 	  - Touch International Panels
 	  - Unitec Panels
-	  - XAT optical touch panels
-	  - Xiroku optical touch panels
 
 	  If unsure, say N.
 
@@ -475,33 +427,66 @@ config HID_PICOLCD_LEDS
 	---help---
 	  Provide access to PicoLCD's GPO pins via leds class.
 
-config HID_PRIMAX
-	tristate "Primax non-fully HID-compliant devices"
+config HID_QUANTA
+	tristate "Quanta Optical Touch panels"
 	depends on USB_HID
 	---help---
-	Support for Primax devices that are not fully compliant with the
-	HID standard.
+	Support for Quanta Optical Touch dual-touch panels.
 
 config HID_ROCCAT
-	tristate "Roccat device support"
+	tristate "Roccat special event support"
 	depends on USB_HID
 	---help---
-	Support for Roccat devices.
-	Say Y here if you have a Roccat mouse or keyboard and want
-	support for its special functionalities.
+	Support for Roccat special events.
+	Say Y here if you have a Roccat mouse or keyboard and want OSD or
+	macro execution support.
 
-config HID_SAITEK
-	tristate "Saitek non-fully HID-compliant devices"
+config HID_ROCCAT_COMMON
+	tristate
+
+config HID_ROCCAT_ARVO
+	tristate "Roccat Arvo keyboard support"
 	depends on USB_HID
+	select HID_ROCCAT
+	select HID_ROCCAT_COMMON
 	---help---
-	Support for Saitek devices that are not fully compliant with the
-	HID standard.
+	Support for Roccat Arvo keyboard.
 
-	Currently only supports the PS1000 controller.
+config HID_ROCCAT_KONE
+	tristate "Roccat Kone Mouse support"
+	depends on USB_HID
+	select HID_ROCCAT
+	select HID_ROCCAT_COMMON
+	---help---
+	Support for Roccat Kone mouse.
+
+config HID_ROCCAT_KONEPLUS
+	tristate "Roccat Kone[+] mouse support"
+	depends on USB_HID
+	select HID_ROCCAT
+	select HID_ROCCAT_COMMON
+	---help---
+	Support for Roccat Kone[+] mouse.
+
+config HID_ROCCAT_KOVAPLUS
+	tristate "Roccat Kova[+] mouse support"
+	depends on USB_HID
+	select HID_ROCCAT
+	select HID_ROCCAT_COMMON
+	---help---
+	Support for Roccat Kova[+] mouse.
+
+config HID_ROCCAT_PYRA
+	tristate "Roccat Pyra mouse support"
+	depends on USB_HID
+	select HID_ROCCAT
+	select HID_ROCCAT_COMMON
+	---help---
+	Support for Roccat Pyra mouse.
 
 config HID_SAMSUNG
 	tristate "Samsung InfraRed remote control or keyboards"
-	depends on USB_HID
+	depends on (USB_HID || BT_HIDP)
 	---help---
 	Support for Samsung InfraRed remote control or keyboards.
 
@@ -510,12 +495,6 @@ config HID_SONY
 	depends on USB_HID
 	---help---
 	Support for Sony PS3 controller.
-
-config HID_SPEEDLINK
-	tristate "Speedlink VAD Cezanne mouse support"
-	depends on USB_HID
-	---help---
-	Support for Speedlink Vicious and Divine Cezanne mouse.
 
 config HID_SUNPLUS
 	tristate "Sunplus wireless desktop"
@@ -539,21 +518,11 @@ config GREENASIA_FF
 	(like MANTA Warrior MM816 and SpeedLink Strike2 SL-6635) or adapter
 	and want to enable force feedback support for it.
 
-config HID_HYPERV_MOUSE
-	tristate "Microsoft Hyper-V mouse driver"
-	depends on HYPERV
-	---help---
-	Select this option to enable the Hyper-V mouse driver.
-
 config HID_SMARTJOYPLUS
 	tristate "SmartJoy PLUS PS2/USB adapter support"
 	depends on USB_HID
 	---help---
-	Support for SmartJoy PLUS PS2/USB adapter, Super Dual Box,
-	Super Joy Box 3 Pro, Super Dual Box Pro, and Super Joy Box 5 Pro.
-
-	Note that DDR (Dance Dance Revolution) mode is not supported, nor
-	is pressure sensitive buttons on the pro models.
+	Support for SmartJoy PLUS PS2/USB adapter.
 
 config SMARTJOYPLUS_FF
 	bool "SmartJoy PLUS PS2/USB adapter force feedback support"
@@ -562,12 +531,6 @@ config SMARTJOYPLUS_FF
 	---help---
 	Say Y here if you have a SmartJoy PLUS PS2/USB adapter and want to
 	enable force feedback support for it.
-
-config HID_TIVO
-	tristate "TiVo Slide Bluetooth remote control support"
-	depends on (USB_HID || BT_HIDP)
-	---help---
-	Say Y if you have a TiVo Slide Bluetooth remote control.
 
 config HID_TOPSEED
 	tristate "TopSeed Cyberlink, BTC Emprex, Conceptronic remote control support"
@@ -605,24 +568,6 @@ config HID_WACOM_POWER_SUPPLY
 	---help---
 	  Say Y here if you want to enable power supply status monitoring for
 	  Wacom Bluetooth devices.
-
-config HID_WIIMOTE
-	tristate "Nintendo Wii Remote support"
-	depends on BT_HIDP
-	depends on LEDS_CLASS
-	select POWER_SUPPLY
-	select INPUT_FF_MEMLESS
-	---help---
-	Support for the Nintendo Wii Remote bluetooth device.
-
-config HID_WIIMOTE_EXT
-	bool "Nintendo Wii Remote Extension support"
-	depends on HID_WIIMOTE
-	default HID_WIIMOTE
-	---help---
-	Support for extension controllers of the Nintendo Wii Remote. Say yes
-	here if you want to use the Nintendo Motion+, Nunchuck or Classic
-	extension controllers with your Wii Remote.
 
 config HID_ZEROPLUS
 	tristate "Zeroplus based game controller support"

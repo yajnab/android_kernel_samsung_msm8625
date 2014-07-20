@@ -26,7 +26,6 @@
 #include <linux/slab.h>
 #include <linux/usb.h>
 #include <linux/module.h>
-
 #include "hid-ids.h"
 
 #ifdef CONFIG_ZEROPLUS_FF

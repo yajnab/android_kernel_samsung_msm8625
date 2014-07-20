@@ -706,6 +706,11 @@ struct input_keymap_entry {
 #define KEY_CAMERA_LEFT		0x219
 #define KEY_CAMERA_RIGHT	0x21a
 
+/* ROY LTN DTV uses ANTENNA Detection, LATIN MM team*/
+#define KEY_DMB_ANT_DET_UP		0x21b
+#define KEY_DMB_ANT_DET_DOWN	0x21c
+
+
 #define BTN_TRIGGER_HAPPY		0x2c0
 #define BTN_TRIGGER_HAPPY1		0x2c0
 #define BTN_TRIGGER_HAPPY2		0x2c1
@@ -816,6 +821,8 @@ struct input_keymap_entry {
 #define ABS_MT_TRACKING_ID	0x39	/* Unique ID of initiated contact */
 #define ABS_MT_PRESSURE		0x3a	/* Pressure on contact area */
 #define ABS_MT_DISTANCE		0x3b	/* Contact hover distance */
+#define ABS_MT_PALM             0x3d
+#define ABS_MT_ANGLE           0x3c
 
 #ifdef __KERNEL__
 /* Implementation details, userspace should not care about these */

@@ -4,7 +4,7 @@
  *
  * Copyright (C) 2008 Google, Inc.
  * Copyright (C) 2008 HTC Corporation
- * Copyright (c) 2012 Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -39,6 +39,7 @@
 
 #include "audmgr.h"
 
+#include <mach/qdsp5/audio_acdb_def.h>
 #include <mach/qdsp5/qdsp5audppcmdi.h>
 #include <mach/qdsp5/qdsp5audppmsg.h>
 #include <mach/qdsp5/qdsp5audpp.h>
@@ -292,12 +293,18 @@ void audio_commit_pending_pp_params(void *priv, unsigned id, uint16_t *msg)
 {
 	struct audio_copp *audio_copp = priv;
 
+	if (audio_copp == NULL) {
+		MM_ERR("NULL audio copp pointer\n");
+		return;
+	}
+
 	if (AUDPP_MSG_CFG_MSG == id && msg[0] == AUDPP_MSG_ENA_DIS)
 		return;
 
 	if (!audio_copp->status)
 		return;
 
+	if (!is_acdb_enabled()) {
 	audpp_dsp_set_mbadrc(COMMON_OBJ_ID, audio_copp->mbadrc_enable,
 						&audio_copp->mbadrc);
 
@@ -311,6 +318,7 @@ void audio_commit_pending_pp_params(void *priv, unsigned id, uint16_t *msg)
 	audpp_dsp_set_qconcert_plus(COMMON_OBJ_ID,
 				audio_copp->qconcert_plus_enable,
 				&audio_copp->qconcert_plus);
+	}
 	audio_enable_srs_trumedia(audio_copp, true);
 }
 EXPORT_SYMBOL(audio_commit_pending_pp_params);

@@ -633,8 +633,22 @@ int hsusb_chg_init(int connect)
 }
 EXPORT_SYMBOL(hsusb_chg_init);
 
+#if defined(CONFIG_MACH_ARUBA_DUOS_CTC) || defined(CONFIG_MACH_INFINITE_DUOS_CTC) || defined(CONFIG_MACH_ARUBA_OPEN_CHN) || \
+	defined(CONFIG_MACH_DELOS_OPEN) || defined(CONFIG_MACH_DELOS_CTC) || defined(CONFIG_MACH_HENNESSY_DUOS_CTC)
+int intended_set = 0;
+EXPORT_SYMBOL(intended_set);
+#endif
 void hsusb_chg_vbus_draw(unsigned mA)
 {
+#if defined(CONFIG_MACH_ARUBA_DUOS_CTC) || defined(CONFIG_MACH_INFINITE_DUOS_CTC) || defined(CONFIG_MACH_ARUBA_OPEN_CHN) || \
+	defined(CONFIG_MACH_DELOS_OPEN) || defined(CONFIG_MACH_DELOS_CTC) || defined(CONFIG_MACH_HENNESSY_DUOS_CTC)
+	printk("%s : intended_set = %d\n" , __func__ , intended_set );
+
+	if (intended_set) {
+		intended_set = 0;
+		return;
+	}
+#endif
 	msm_chg_usb_i_is_available(mA);
 }
 EXPORT_SYMBOL(hsusb_chg_vbus_draw);
@@ -645,7 +659,13 @@ void hsusb_chg_connected(enum chg_type chgtype)
 			"CARKIT",
 			"DEDICATED CHARGER",
 			"INVALID"};
+#if defined(CONFIG_MACH_ARUBA_DUOS_CTC) || defined(CONFIG_MACH_INFINITE_DUOS_CTC) || defined(CONFIG_MACH_ARUBA_OPEN_CHN)\
+	|| defined(CONFIG_MACH_DELOS_OPEN) || defined(CONFIG_MACH_DELOS_CTC) || defined(CONFIG_MACH_HENNESSY_DUOS_CTC)
+	printk("%s : intended_set = %d\n" , __func__ , intended_set );	
 
+	if (intended_set)
+		return;
+#endif
 	if (chgtype == USB_CHG_TYPE__INVALID) {
 		msm_chg_usb_i_is_not_available();
 		msm_chg_usb_charger_disconnected();

@@ -1276,6 +1276,18 @@ enum v4l2_colorfx {
 /* last CID + 1 */
 #define V4L2_CID_LASTP1                         (V4L2_CID_BASE+42)
 #define V4L2_CID_SPECIAL_EFFECT			(V4L2_CID_BASE+43)
+
+#define V4L2_CID_PREVIEW_SIZE			(V4L2_CID_BASE+44)
+#define V4L2_CID_PICTURE_SIZE			(V4L2_CID_BASE+45)
+
+// tmp add
+#define V4L2_CID_SCENE				(V4L2_CID_BASE+46)
+#define V4L2_CID_METER				(V4L2_CID_BASE+47)
+#define V4L2_CID_AF_MODE			(V4L2_CID_BASE+48)
+#define V4L2_CID_FPS				(V4L2_CID_BASE+49)
+
+// tmp add
+
 /* Minimum number of buffer neede by the device */
 
 /*  MPEG-class control IDs defined by V4L2 */

@@ -96,6 +96,12 @@ config USB_GADGET_VBUS_DRAW
 
 	   This value will be used except for system-specific gadget
 	   drivers that have more specific information.
+config USB_DUN_SUPPORT
+        boolean "CTC DUN support config"
+        default n
+        help
+           CTC Dun is used for user to use the mobile phone as the modem
+           for PC.
 
 config USB_GADGET_STORAGE_NUM_BUFFERS
 	int "Number of storage pipeline buffers"
@@ -112,6 +118,32 @@ config USB_GADGET_STORAGE_NUM_BUFFERS
 	   If selecting USB_GADGET_DEBUG_FILES this value may be set by
 	   a module parameter as well.
 	   If unsure, say 2.
+
+config USB_ANDROID_SAMSUNG_MTP
+	boolean "Samsung MTP function"
+	depends on USB_G_ANDROID
+	help
+	  Provides Media Transfer Protocol (MTP) support
+ 	  for samsung gadget driver.
+	  If you enable this option,
+	  google mtp will be changed to samsung mtp.
+
+config USB_DCHUN_MAC
+	boolean "Samsung AFT Feature for MAC"
+	depends on USB_G_ANDROID
+	help
+	  Provides AFT connection for MAC.
+	  If you enable this option,
+	  pid will be changed as authorized pid(0x6860).
+
+config USB_EXTERNAL_CHARGER 
+	boolean "Samsung External Charger function"
+	default n 
+	help
+	  Provides External Charger support
+ 	  for samsung external chager.
+	  This is very special case.
+          To enable USB function , we have to control dedicated GPIO.
 
 #
 # USB Peripheral Controller Support
@@ -914,6 +946,15 @@ config USB_G_ANDROID
 	  and rndis.
 	  Each function can be configured and enabled/disabled
 	  dynamically from userspace through a sysfs interface.
+
+config USB_ANDROID_SAMSUNG_COMPOSITE
+        boolean "Samsung Composite function"
+        depends on USB_G_ANDROID
+        help
+                Provides SAMSUNG composite driver.
+                It also provides KIES connection and
+                Multi Configuration.
+                If you enable this option, android composite will be changed.
 
 config USB_CDC_COMPOSITE
 	tristate "CDC Composite Device (Ethernet and ACM)"

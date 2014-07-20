@@ -71,6 +71,13 @@ static unsigned int ath5k_debug;
 module_param_named(debug, ath5k_debug, uint, 0);
 
 
+static int ath5k_debugfs_open(struct inode *inode, struct file *file)
+{
+	file->private_data = inode->i_private;
+	return 0;
+}
+
+
 /* debugfs: registers */
 
 struct reg {
@@ -258,7 +265,7 @@ static ssize_t write_file_beacon(struct file *file,
 static const struct file_operations fops_beacon = {
 	.read = read_file_beacon,
 	.write = write_file_beacon,
-	.open = simple_open,
+	.open = ath5k_debugfs_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -278,7 +285,7 @@ static ssize_t write_file_reset(struct file *file,
 
 static const struct file_operations fops_reset = {
 	.write = write_file_reset,
-	.open = simple_open,
+	.open = ath5k_debugfs_open,
 	.owner = THIS_MODULE,
 	.llseek = noop_llseek,
 };
@@ -358,7 +365,7 @@ static ssize_t write_file_debug(struct file *file,
 static const struct file_operations fops_debug = {
 	.read = read_file_debug,
 	.write = write_file_debug,
-	.open = simple_open,
+	.open = ath5k_debugfs_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -470,7 +477,7 @@ static ssize_t write_file_antenna(struct file *file,
 static const struct file_operations fops_antenna = {
 	.read = read_file_antenna,
 	.write = write_file_antenna,
-	.open = simple_open,
+	.open = ath5k_debugfs_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -525,7 +532,7 @@ static ssize_t read_file_misc(struct file *file, char __user *user_buf,
 
 static const struct file_operations fops_misc = {
 	.read = read_file_misc,
-	.open = simple_open,
+	.open = ath5k_debugfs_open,
 	.owner = THIS_MODULE,
 };
 
@@ -640,7 +647,7 @@ static ssize_t write_file_frameerrors(struct file *file,
 static const struct file_operations fops_frameerrors = {
 	.read = read_file_frameerrors,
 	.write = write_file_frameerrors,
-	.open = simple_open,
+	.open = ath5k_debugfs_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -803,7 +810,7 @@ static ssize_t write_file_ani(struct file *file,
 static const struct file_operations fops_ani = {
 	.read = read_file_ani,
 	.write = write_file_ani,
-	.open = simple_open,
+	.open = ath5k_debugfs_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -874,7 +881,7 @@ static ssize_t write_file_queue(struct file *file,
 static const struct file_operations fops_queue = {
 	.read = read_file_queue,
 	.write = write_file_queue,
-	.open = simple_open,
+	.open = ath5k_debugfs_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };

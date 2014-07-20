@@ -84,6 +84,10 @@
 #include "sched.h"
 #include "../workqueue_sched.h"
 
+#ifdef CONFIG_SEC_DEBUG
+#include <linux/sec_debug.h>
+#endif
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
 
@@ -3241,6 +3245,9 @@ need_resched:
 		 */
 		cpu = smp_processor_id();
 		rq = cpu_rq(cpu);
+#ifdef CONFIG_SEC_DEBUG_SCHED_LOG
+		sec_debug_task_sched_log(cpu, rq->curr);
+#endif
 	} else
 		raw_spin_unlock_irq(&rq->lock);
 

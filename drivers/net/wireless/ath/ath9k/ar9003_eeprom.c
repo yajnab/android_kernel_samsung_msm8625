@@ -3043,7 +3043,8 @@ static bool ar9300_read_eeprom(struct ath_hw *ah, int address, u8 *buffer,
 	int i;
 
 	if ((address < 0) || ((address + count) / 2 > AR9300_EEPROM_SIZE - 1)) {
-		ath_dbg(common, EEPROM, "eeprom address not in range\n");
+		ath_dbg(common, ATH_DBG_EEPROM,
+			"eeprom address not in range\n");
 		return false;
 	}
 
@@ -3074,8 +3075,8 @@ static bool ar9300_read_eeprom(struct ath_hw *ah, int address, u8 *buffer,
 	return true;
 
 error:
-	ath_dbg(common, EEPROM, "unable to read eeprom region at offset %d\n",
-		address);
+	ath_dbg(common, ATH_DBG_EEPROM,
+		"unable to read eeprom region at offset %d\n", address);
 	return false;
 }
 
@@ -3159,13 +3160,13 @@ static bool ar9300_uncompress_block(struct ath_hw *ah,
 		length &= 0xff;
 
 		if (length > 0 && spot >= 0 && spot+length <= mdataSize) {
-			ath_dbg(common, EEPROM,
+			ath_dbg(common, ATH_DBG_EEPROM,
 				"Restore at %d: spot=%d offset=%d length=%d\n",
 				it, spot, offset, length);
 			memcpy(&mptr[spot], &block[it+2], length);
 			spot += length;
 		} else if (length > 0) {
-			ath_dbg(common, EEPROM,
+			ath_dbg(common, ATH_DBG_EEPROM,
 				"Bad restore at %d: spot=%d offset=%d length=%d\n",
 				it, spot, offset, length);
 			return false;
@@ -3187,13 +3188,13 @@ static int ar9300_compress_decision(struct ath_hw *ah,
 	switch (code) {
 	case _CompressNone:
 		if (length != mdata_size) {
-			ath_dbg(common, EEPROM,
+			ath_dbg(common, ATH_DBG_EEPROM,
 				"EEPROM structure size mismatch memory=%d eeprom=%d\n",
 				mdata_size, length);
 			return -1;
 		}
 		memcpy(mptr, (u8 *) (word + COMP_HDR_LEN), length);
-		ath_dbg(common, EEPROM,
+		ath_dbg(common, ATH_DBG_EEPROM,
 			"restored eeprom %d: uncompressed, length %d\n",
 			it, length);
 		break;
@@ -3202,21 +3203,22 @@ static int ar9300_compress_decision(struct ath_hw *ah,
 		} else {
 			eep = ar9003_eeprom_struct_find_by_id(reference);
 			if (eep == NULL) {
-				ath_dbg(common, EEPROM,
+				ath_dbg(common, ATH_DBG_EEPROM,
 					"can't find reference eeprom struct %d\n",
 					reference);
 				return -1;
 			}
 			memcpy(mptr, eep, mdata_size);
 		}
-		ath_dbg(common, EEPROM,
+		ath_dbg(common, ATH_DBG_EEPROM,
 			"restore eeprom %d: block, reference %d, length %d\n",
 			it, reference, length);
 		ar9300_uncompress_block(ah, mptr, mdata_size,
 					(u8 *) (word + COMP_HDR_LEN), length);
 		break;
 	default:
-		ath_dbg(common, EEPROM, "unknown compression code %d\n", code);
+		ath_dbg(common, ATH_DBG_EEPROM,
+			"unknown compression code %d\n", code);
 		return -1;
 	}
 	return 0;
@@ -3292,32 +3294,34 @@ static int ar9300_eeprom_restore_internal(struct ath_hw *ah,
 		cptr = AR9300_BASE_ADDR_512;
 	else
 		cptr = AR9300_BASE_ADDR;
-	ath_dbg(common, EEPROM, "Trying EEPROM access at Address 0x%04x\n",
-		cptr);
+	ath_dbg(common, ATH_DBG_EEPROM,
+		"Trying EEPROM access at Address 0x%04x\n", cptr);
 	if (ar9300_check_eeprom_header(ah, read, cptr))
 		goto found;
 
 	cptr = AR9300_BASE_ADDR_512;
-	ath_dbg(common, EEPROM, "Trying EEPROM access at Address 0x%04x\n",
-		cptr);
+	ath_dbg(common, ATH_DBG_EEPROM,
+		"Trying EEPROM access at Address 0x%04x\n", cptr);
 	if (ar9300_check_eeprom_header(ah, read, cptr))
 		goto found;
 
 	read = ar9300_read_otp;
 	cptr = AR9300_BASE_ADDR;
-	ath_dbg(common, EEPROM, "Trying OTP access at Address 0x%04x\n", cptr);
+	ath_dbg(common, ATH_DBG_EEPROM,
+		"Trying OTP access at Address 0x%04x\n", cptr);
 	if (ar9300_check_eeprom_header(ah, read, cptr))
 		goto found;
 
 	cptr = AR9300_BASE_ADDR_512;
-	ath_dbg(common, EEPROM, "Trying OTP access at Address 0x%04x\n", cptr);
+	ath_dbg(common, ATH_DBG_EEPROM,
+		"Trying OTP access at Address 0x%04x\n", cptr);
 	if (ar9300_check_eeprom_header(ah, read, cptr))
 		goto found;
 
 	goto fail;
 
 found:
-	ath_dbg(common, EEPROM, "Found valid EEPROM data\n");
+	ath_dbg(common, ATH_DBG_EEPROM, "Found valid EEPROM data\n");
 
 	for (it = 0; it < MSTATE; it++) {
 		if (!read(ah, cptr, word, COMP_HDR_LEN))
@@ -3328,12 +3332,13 @@ found:
 
 		ar9300_comp_hdr_unpack(word, &code, &reference,
 				       &length, &major, &minor);
-		ath_dbg(common, EEPROM,
+		ath_dbg(common, ATH_DBG_EEPROM,
 			"Found block at %x: code=%d ref=%d length=%d major=%d minor=%d\n",
 			cptr, code, reference, length, major, minor);
 		if ((!AR_SREV_9485(ah) && length >= 1024) ||
 		    (AR_SREV_9485(ah) && length > EEPROM_DATA_LEN_9485)) {
-			ath_dbg(common, EEPROM, "Skipping bad header\n");
+			ath_dbg(common, ATH_DBG_EEPROM,
+				"Skipping bad header\n");
 			cptr -= COMP_HDR_LEN;
 			continue;
 		}
@@ -3342,13 +3347,13 @@ found:
 		read(ah, cptr, word, COMP_HDR_LEN + osize + COMP_CKSUM_LEN);
 		checksum = ar9300_comp_cksum(&word[COMP_HDR_LEN], length);
 		mchecksum = get_unaligned_le16(&word[COMP_HDR_LEN + osize]);
-		ath_dbg(common, EEPROM, "checksum %x %x\n",
-			checksum, mchecksum);
+		ath_dbg(common, ATH_DBG_EEPROM,
+			"checksum %x %x\n", checksum, mchecksum);
 		if (checksum == mchecksum) {
 			ar9300_compress_decision(ah, it, code, reference, mptr,
 						 word, length, mdata_size);
 		} else {
-			ath_dbg(common, EEPROM,
+			ath_dbg(common, ATH_DBG_EEPROM,
 				"skipping block with bad checksum\n");
 		}
 		cptr -= (COMP_HDR_LEN + osize + COMP_CKSUM_LEN);
@@ -3538,13 +3543,13 @@ static void ar9003_hw_xpa_bias_level_apply(struct ath_hw *ah, bool is2ghz)
 static u16 ar9003_switch_com_spdt_get(struct ath_hw *ah, bool is_2ghz)
 {
 	struct ar9300_eeprom *eep = &ah->eeprom.ar9300_eep;
-	__le16 val;
+	__le32 val;
 
 	if (is_2ghz)
 		val = eep->modalHeader2G.switchcomspdt;
 	else
 		val = eep->modalHeader5G.switchcomspdt;
-	return le16_to_cpu(val);
+	return le32_to_cpu(val);
 }
 
 
@@ -3603,6 +3608,10 @@ static void ar9003_hw_ant_ctrl_apply(struct ath_hw *ah, bool is2ghz)
 	u32 value = ar9003_hw_ant_ctrl_common_get(ah, is2ghz);
 
 	if (AR_SREV_9462(ah)) {
+		if (AR_SREV_9462_10(ah)) {
+			value &= ~AR_SWITCH_TABLE_COM_SPDT;
+			value |= 0x00100000;
+		}
 		REG_RMW_FIELD(ah, AR_PHY_SWITCH_COM,
 				AR_SWITCH_TABLE_COM_AR9462_ALL, value);
 	} else
@@ -4415,8 +4424,8 @@ static void ar9003_hw_set_target_power_eeprom(struct ath_hw *ah, u16 freq,
 					      is2GHz) + ht40PowerIncForPdadc;
 
 	for (i = 0; i < ar9300RateSize; i++) {
-		ath_dbg(common, EEPROM, "TPC[%02d] 0x%08x\n",
-			i, targetPowerValT2[i]);
+		ath_dbg(common, ATH_DBG_EEPROM,
+			"TPC[%02d] 0x%08x\n", i, targetPowerValT2[i]);
 	}
 }
 
@@ -4435,7 +4444,7 @@ static int ar9003_hw_cal_pier_get(struct ath_hw *ah,
 	struct ath_common *common = ath9k_hw_common(ah);
 
 	if (ichain >= AR9300_MAX_CHAINS) {
-		ath_dbg(common, EEPROM,
+		ath_dbg(common, ATH_DBG_EEPROM,
 			"Invalid chain index, must be less than %d\n",
 			AR9300_MAX_CHAINS);
 		return -1;
@@ -4443,7 +4452,7 @@ static int ar9003_hw_cal_pier_get(struct ath_hw *ah,
 
 	if (mode) {		/* 5GHz */
 		if (ipier >= AR9300_NUM_5G_CAL_PIERS) {
-			ath_dbg(common, EEPROM,
+			ath_dbg(common, ATH_DBG_EEPROM,
 				"Invalid 5GHz cal pier index, must be less than %d\n",
 				AR9300_NUM_5G_CAL_PIERS);
 			return -1;
@@ -4453,7 +4462,7 @@ static int ar9003_hw_cal_pier_get(struct ath_hw *ah,
 		is2GHz = 0;
 	} else {
 		if (ipier >= AR9300_NUM_2G_CAL_PIERS) {
-			ath_dbg(common, EEPROM,
+			ath_dbg(common, ATH_DBG_EEPROM,
 				"Invalid 2GHz cal pier index, must be less than %d\n",
 				AR9300_NUM_2G_CAL_PIERS);
 			return -1;
@@ -4615,7 +4624,8 @@ static int ar9003_hw_calibration_apply(struct ath_hw *ah, int frequency)
 
 	/* interpolate  */
 	for (ichain = 0; ichain < AR9300_MAX_CHAINS; ichain++) {
-		ath_dbg(common, EEPROM, "ch=%d f=%d low=%d %d h=%d %d\n",
+		ath_dbg(common, ATH_DBG_EEPROM,
+			"ch=%d f=%d low=%d %d h=%d %d\n",
 			ichain, frequency, lfrequency[ichain],
 			lcorrection[ichain], hfrequency[ichain],
 			hcorrection[ichain]);
@@ -4670,7 +4680,7 @@ static int ar9003_hw_calibration_apply(struct ath_hw *ah, int frequency)
 	ar9003_hw_power_control_override(ah, frequency, correction, voltage,
 					 temperature);
 
-	ath_dbg(common, EEPROM,
+	ath_dbg(common, ATH_DBG_EEPROM,
 		"for frequency=%d, calibration correction = %d %d %d\n",
 		frequency, correction[0], correction[1], correction[2]);
 
@@ -4769,7 +4779,7 @@ static void ar9003_hw_set_power_per_rate_table(struct ath_hw *ah,
 {
 	struct ath_common *common = ath9k_hw_common(ah);
 	struct ar9300_eeprom *pEepData = &ah->eeprom.ar9300_eep;
-	u16 twiceMaxEdgePower;
+	u16 twiceMaxEdgePower = MAX_RATE_POWER;
 	int i;
 	u16 scaledPower = 0, minCtlPower;
 	static const u16 ctlModesFor11a[] = {
@@ -4856,7 +4866,7 @@ static void ar9003_hw_set_power_per_rate_table(struct ath_hw *ah,
 		else
 			freq = centers.ctl_center;
 
-		ath_dbg(common, REGULATORY,
+		ath_dbg(common, ATH_DBG_REGULATORY,
 			"LOOP-Mode ctlMode %d < %d, isHt40CtlMode %d, EXT_ADDITIVE %d\n",
 			ctlMode, numCtlModes, isHt40CtlMode,
 			(pCtlMode[ctlMode] & EXT_ADDITIVE));
@@ -4870,9 +4880,8 @@ static void ar9003_hw_set_power_per_rate_table(struct ath_hw *ah,
 			ctlNum = AR9300_NUM_CTLS_5G;
 		}
 
-		twiceMaxEdgePower = MAX_RATE_POWER;
 		for (i = 0; (i < ctlNum) && ctlIndex[i]; i++) {
-			ath_dbg(common, REGULATORY,
+			ath_dbg(common, ATH_DBG_REGULATORY,
 				"LOOP-Ctlidx %d: cfgCtl 0x%2.2x pCtlMode 0x%2.2x ctlIndex 0x%2.2x chan %d\n",
 				i, cfgCtl, pCtlMode[ctlMode], ctlIndex[i],
 				chan->channel);
@@ -4914,7 +4923,7 @@ static void ar9003_hw_set_power_per_rate_table(struct ath_hw *ah,
 
 			minCtlPower = (u8)min(twiceMaxEdgePower, scaledPower);
 
-			ath_dbg(common, REGULATORY,
+			ath_dbg(common, ATH_DBG_REGULATORY,
 				"SEL-Min ctlMode %d pCtlMode %d 2xMaxEdge %d sP %d minCtlPwr %d\n",
 				ctlMode, pCtlMode[ctlMode], twiceMaxEdgePower,
 				scaledPower, minCtlPower);
@@ -5038,7 +5047,7 @@ static void ath9k_hw_ar9300_set_txpower(struct ath_hw *ah,
 				target_power_val_t2_eep[i]) >
 			    paprd_scale_factor)) {
 				ah->paprd_ratemask &= ~(1 << i);
-				ath_dbg(common, EEPROM,
+				ath_dbg(common, ATH_DBG_EEPROM,
 					"paprd disabled for mcs %d\n", i);
 			}
 		}
@@ -5056,8 +5065,8 @@ static void ath9k_hw_ar9300_set_txpower(struct ath_hw *ah,
 		return;
 
 	for (i = 0; i < ar9300RateSize; i++) {
-		ath_dbg(common, EEPROM, "TPC[%02d] 0x%08x\n",
-			i, targetPowerValT2[i]);
+		ath_dbg(common, ATH_DBG_EEPROM,
+			"TPC[%02d] 0x%08x\n", i, targetPowerValT2[i]);
 	}
 
 	ah->txpower_limit = regulatory->max_power_level;

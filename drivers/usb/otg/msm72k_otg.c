@@ -318,6 +318,31 @@ static inline void set_driver_amplitude(struct msm_otg *dev)
 	ulpi_write(dev, res, ULPI_CONFIG_REG2);
 }
 
+// for receiver sensitivity
+#define ULPI_SQUELCH_LEVEL_MASK	(3 << 6)
+#define ULPI_CONFIG_REG4	0X33
+
+enum squelch_level {
+	SQUELCH_LEVEL_1,
+	SQUELCH_LEVEL_2 = (1 << 6),
+	SQUELCH_LEVEL_3 = (1 << 7),
+	SQUELCH_LEVEL_4 = (3 << 6),
+};
+
+static inline void set_squelch_level(struct msm_otg *dev)
+{
+	unsigned res = 0;
+
+	if (!dev->pdata)
+		return;
+
+	res = ulpi_read(dev, ULPI_CONFIG_REG4);
+
+	res &= ~ULPI_SQUELCH_LEVEL_MASK;
+	res |= SQUELCH_LEVEL_1;
+	ulpi_write(dev, res, ULPI_CONFIG_REG4);
+}
+
 static const char *state_string(enum usb_otg_state state)
 {
 	switch (state) {
@@ -352,6 +377,9 @@ static const char *timer_string(int bit)
 	}
 }
 
+#if defined(CONFIG_MACH_ARUBA_OPEN_CHN) || defined(CONFIG_MACH_DELOS_OPEN) || defined(CONFIG_MACH_ARUBA_CTC) || defined(CONFIG_MACH_KYLEPLUS_OPEN) || defined(CONFIG_MACH_ARUBASLIM_OPEN)|| defined(CONFIG_MACH_ROY)||defined(CONFIG_MACH_KYLEPLUS_CTC)
+extern int charging_boot;
+#endif
 /* Prevent idle power collapse(pc) while operating in peripheral mode */
 static void otg_pm_qos_update_latency(struct msm_otg *dev, int vote)
 {
@@ -360,13 +388,26 @@ static void otg_pm_qos_update_latency(struct msm_otg *dev, int vote)
 
 	if (pdata)
 		swfi_latency = pdata->swfi_latency + 1;
-
+#if defined(CONFIG_MACH_ARUBA_OPEN_CHN) || defined(CONFIG_MACH_DELOS_OPEN) || defined(CONFIG_MACH_ARUBA_CTC) || defined(CONFIG_MACH_KYLEPLUS_OPEN) || defined(CONFIG_MACH_ARUBASLIM_OPEN)|| defined(CONFIG_MACH_ROY)||defined(CONFIG_MACH_KYLEPLUS_CTC)
+	if (charging_boot) {
+		pm_qos_update_request(&pdata->pm_qos_req_dma,
+					PM_QOS_DEFAULT_VALUE);
+	} else {
+		if (vote)
+			pm_qos_update_request(&pdata->pm_qos_req_dma,
+					swfi_latency);
+		else
+			pm_qos_update_request(&pdata->pm_qos_req_dma,
+					PM_QOS_DEFAULT_VALUE);
+	}
+#else
 	if (vote)
 		pm_qos_update_request(&pdata->pm_qos_req_dma,
 				swfi_latency);
 	else
 		pm_qos_update_request(&pdata->pm_qos_req_dma,
 				PM_QOS_DEFAULT_VALUE);
+#endif
 }
 
 /* Controller gives interrupt for every 1 mesc if 1MSIE is set in OTGSC.
@@ -1270,15 +1311,27 @@ static irqreturn_t msm_otg_irq(int irq, void *data)
 	state = dev->phy.state;
 	spin_unlock_irqrestore(&dev->lock, flags);
 
+#ifdef CONFIG_MACH_DELOS_DUOS_CTC
+	printk("IRQ state: %s\n", state_string(state));
+	printk("otgsc = %x\n", otgsc);
+#else
 	pr_debug("IRQ state: %s\n", state_string(state));
 	pr_debug("otgsc = %x\n", otgsc);
-
+#endif
 	if ((otgsc & OTGSC_IDIE) && (otgsc & OTGSC_IDIS)) {
 		if (otgsc & OTGSC_ID) {
+#ifdef CONFIG_MACH_DELOS_DUOS_CTC
+			printk("Id set\n");
+#else
 			pr_debug("Id set\n");
+#endif
 			set_bit(ID, &dev->inputs);
 		} else {
+#ifdef CONFIG_MACH_DELOS_DUOS_CTC
+			printk("Id clear\n");
+#else
 			pr_debug("Id clear\n");
+#endif
 			/* Assert a_bus_req to supply power on
 			 * VBUS when Micro/Mini-A cable is connected
 			 * with out user intervention.
@@ -1296,21 +1349,37 @@ static irqreturn_t msm_otg_irq(int irq, void *data)
 			!test_bit(ID_A, &dev->inputs))
 			goto out;
 		if (otgsc & OTGSC_BSV) {
+#ifdef CONFIG_MACH_DELOS_DUOS_CTC
+			printk("BSV set\n");
+#else
 			pr_debug("BSV set\n");
+#endif
 			set_bit(B_SESS_VLD, &dev->inputs);
 		} else {
+#ifdef CONFIG_MACH_DELOS_DUOS_CTC
+			printk("BSV clear\n");
+#else
 			pr_debug("BSV clear\n");
+#endif
 			clear_bit(B_SESS_VLD, &dev->inputs);
 		}
 		work = 1;
 	} else if (otgsc & OTGSC_DPIS) {
-		pr_debug("DPIS detected\n");
+#ifdef CONFIG_MACH_DELOS_DUOS_CTC
+			printk("DPIS detected\n");
+#else
+			pr_debug("DPIS detected\n");
+#endif
 		set_bit(A_SRP_DET, &dev->inputs);
 		set_bit(A_BUS_REQ, &dev->inputs);
 		work = 1;
 	} else if (sts & STS_PCI) {
 		pc = readl(USB_PORTSC);
-		pr_debug("portsc = %x\n", pc);
+#ifdef CONFIG_MACH_DELOS_DUOS_CTC
+			printk("portsc = %x\n", pc);
+#else
+			pr_debug("portsc = %x\n", pc);
+#endif
 		ret = IRQ_NONE;
 		/* HCD Acks PCI interrupt. We use this to switch
 		 * between different OTG states.
@@ -1321,13 +1390,21 @@ static irqreturn_t msm_otg_irq(int irq, void *data)
 			if (dev->phy.otg->host->b_hnp_enable &&
 					(pc & PORTSC_CSC) &&
 					!(pc & PORTSC_CCS)) {
+#ifdef CONFIG_MACH_DELOS_DUOS_CTC
+				printk("B_CONN clear\n");
+#else
 				pr_debug("B_CONN clear\n");
+#endif
 				clear_bit(B_CONN, &dev->inputs);
 			}
 			break;
 		case OTG_STATE_B_WAIT_ACON:
 			if ((pc & PORTSC_CSC) && (pc & PORTSC_CCS)) {
+#ifdef CONFIG_MACH_DELOS_DUOS_CTC
+				printk("A_CONN set\n");
+#else
 				pr_debug("A_CONN set\n");
+#endif
 				set_bit(A_CONN, &dev->inputs);
 				/* Clear ASE0_BRST timer */
 				msm_otg_del_timer(dev);
@@ -1335,7 +1412,11 @@ static irqreturn_t msm_otg_irq(int irq, void *data)
 			break;
 		case OTG_STATE_B_HOST:
 			if ((pc & PORTSC_CSC) && !(pc & PORTSC_CCS)) {
+#ifdef CONFIG_MACH_DELOS_DUOS_CTC
+				printk("A_CONN clear\n");
+#else
 				pr_debug("A_CONN clear\n");
+#endif
 				clear_bit(A_CONN, &dev->inputs);
 			}
 			break;
@@ -1597,6 +1678,7 @@ reset_link:
 	set_cdr_auto_reset(dev);
 	set_driver_amplitude(dev);
 	set_se1_gating(dev);
+	set_squelch_level(dev);
 
 	writel(0x0, USB_AHB_BURST);
 	writel(0x00, USB_AHB_MODE);
@@ -2556,7 +2638,7 @@ static int otg_debugfs_init(struct msm_otg *dev)
 	if (!otg_debug_root)
 		return -ENOENT;
 
-	otg_debug_mode = debugfs_create_file("mode", 0222,
+	otg_debug_mode = debugfs_create_file("mode", 0220,
 						otg_debug_root, dev,
 						&otgfs_fops);
 	if (!otg_debug_mode)
@@ -2599,6 +2681,7 @@ struct usb_phy_io_ops msm_otg_io_ops = {
 static int __init msm_otg_probe(struct platform_device *pdev)
 {
 	int ret = 0;
+	int rc = 0;
 	struct resource *res;
 	struct msm_otg *dev;
 
@@ -2647,7 +2730,9 @@ static int __init msm_otg_probe(struct platform_device *pdev)
 		ret = PTR_ERR(dev->alt_core_clk);
 		goto rpc_fail;
 	}
-	clk_set_rate(dev->alt_core_clk, 60000000);
+	rc = clk_set_rate(dev->alt_core_clk, 60000000);
+	if (rc < 0)
+		pr_err("clk_set_rate failed (%d)\n", rc);
 
 	/* pm qos request to prevent apps idle power collapse */
 	pm_qos_add_request(&dev->pdata->pm_qos_req_dma, PM_QOS_CPU_DMA_LATENCY,
@@ -2663,7 +2748,9 @@ static int __init msm_otg_probe(struct platform_device *pdev)
 	 * and USB core cannot tolerate frequency changes on CORE CLK.
 	 * Vote for maximum clk frequency for CORE clock.
 	 */
-	clk_set_rate(dev->core_clk, INT_MAX);
+	rc = clk_set_rate(dev->core_clk, INT_MAX);
+	if (rc < 0)
+		pr_err("clk_set_rate failed (%d)\n", rc);
 
 	clk_prepare_enable(dev->core_clk);
 

@@ -567,8 +567,10 @@ static u8 ath_rc_setvalid_rates(struct ath_rate_priv *ath_rc_priv,
 
 static u8 ath_rc_setvalid_htrates(struct ath_rate_priv *ath_rc_priv,
 				  const struct ath_rate_table *rate_table,
-				  struct ath_rateset *rateset, u32 capflag)
+				  u8 *mcs_set, u32 capflag)
 {
+	struct ath_rateset *rateset = (struct ath_rateset *)mcs_set;
+
 	u8 i, j, hi = 0;
 
 	/* Use intersection of working rates and valid rates */
@@ -692,7 +694,7 @@ static u8 ath_rc_get_highest_rix(struct ath_softc *sc,
 		return rate;
 
 	/* This should not happen */
-	WARN_ON_ONCE(1);
+	WARN_ON(1);
 
 	rate = ath_rc_priv->valid_rate_index[0];
 
@@ -748,8 +750,7 @@ static void ath_rc_rate_set_rtscts(struct ath_softc *sc,
 	 * If 802.11g protection is enabled, determine whether to use RTS/CTS or
 	 * just CTS.  Note that this is only done for OFDM/HT unicast frames.
 	 */
-	if ((tx_info->control.vif &&
-	     tx_info->control.vif->bss_conf.use_cts_prot) &&
+	if ((sc->sc_flags & SC_OP_PROTECT_ENABLE) &&
 	    (rate_table->info[rix].phy == WLAN_RC_PHY_OFDM ||
 	     WLAN_RC_PHY_HT(rate_table->info[rix].phy))) {
 		rates[0].flags |= IEEE80211_TX_RC_USE_CTS_PROTECT;
@@ -1198,7 +1199,7 @@ struct ath_rate_table *ath_choose_rate_table(struct ath_softc *sc,
 			return &ar5416_11na_ratetable;
 		return &ar5416_11a_ratetable;
 	default:
-		ath_dbg(common, CONFIG, "Invalid band\n");
+		ath_dbg(common, ATH_DBG_CONFIG, "Invalid band\n");
 		return NULL;
 	}
 }
@@ -1211,7 +1212,7 @@ static void ath_rc_init(struct ath_softc *sc,
 {
 	struct ath_rateset *rateset = &ath_rc_priv->neg_rates;
 	struct ath_common *common = ath9k_hw_common(sc->sc_ah);
-	struct ath_rateset *ht_mcs = &ath_rc_priv->neg_ht_rates;
+	u8 *ht_mcs = (u8 *)&ath_rc_priv->neg_ht_rates;
 	u8 i, j, k, hi = 0, hthi = 0;
 
 	/* Initial rate table size. Will change depending
@@ -1227,7 +1228,7 @@ static void ath_rc_init(struct ath_softc *sc,
 	ath_rc_init_valid_rate_idx(ath_rc_priv);
 
 	for (i = 0; i < WLAN_RC_PHY_MAX; i++) {
-		for (j = 0; j < RATE_TABLE_SIZE; j++)
+		for (j = 0; j < MAX_TX_RATE_PHY; j++)
 			ath_rc_priv->valid_phy_rateidx[i][j] = 0;
 		ath_rc_priv->valid_phy_ratecnt[i] = 0;
 	}
@@ -1270,12 +1271,11 @@ static void ath_rc_init(struct ath_softc *sc,
 
 	ath_rc_priv->max_valid_rate = k;
 	ath_rc_sort_validrates(rate_table, ath_rc_priv);
-	ath_rc_priv->rate_max_phy = (k > 4) ?
-					ath_rc_priv->valid_rate_index[k-4] :
-					ath_rc_priv->valid_rate_index[k-1];
+	ath_rc_priv->rate_max_phy = ath_rc_priv->valid_rate_index[k-4];
 	ath_rc_priv->rate_table = rate_table;
 
-	ath_dbg(common, CONFIG, "RC Initialized with capabilities: 0x%x\n",
+	ath_dbg(common, ATH_DBG_CONFIG,
+		"RC Initialized with capabilities: 0x%x\n",
 		ath_rc_priv->ht_cap);
 }
 
@@ -1299,13 +1299,12 @@ static u8 ath_rc_build_ht_caps(struct ath_softc *sc, struct ieee80211_sta *sta,
 	return caps;
 }
 
-static bool ath_tx_aggr_check(struct ath_softc *sc, struct ieee80211_sta *sta,
+static bool ath_tx_aggr_check(struct ath_softc *sc, struct ath_node *an,
 			      u8 tidno)
 {
-	struct ath_node *an = (struct ath_node *)sta->drv_priv;
 	struct ath_atx_tid *txtid;
 
-	if (!sta->ht_cap.ht_supported)
+	if (!(sc->sc_flags & SC_OP_TXAGGR))
 		return false;
 
 	txtid = ATH_AN_2_TID(an, tidno);
@@ -1346,7 +1345,7 @@ static void ath_tx_status(void *priv, struct ieee80211_supported_band *sband,
 	fc = hdr->frame_control;
 	for (i = 0; i < sc->hw->max_rates; i++) {
 		struct ieee80211_tx_rate *rate = &tx_info->status.rates[i];
-		if (rate->idx < 0 || !rate->count)
+		if (!rate->count)
 			break;
 
 		final_ts_idx = i;
@@ -1376,11 +1375,13 @@ static void ath_tx_status(void *priv, struct ieee80211_supported_band *sband,
 		if (ieee80211_is_data_qos(fc) &&
 		    skb_get_queue_mapping(skb) != IEEE80211_AC_VO) {
 			u8 *qc, tid;
+			struct ath_node *an;
 
 			qc = ieee80211_get_qos_ctl(hdr);
 			tid = qc[0] & 0xf;
+			an = (struct ath_node *)sta->drv_priv;
 
-			if(ath_tx_aggr_check(sc, sta, tid))
+			if(ath_tx_aggr_check(sc, an, tid))
 				ieee80211_start_tx_ba_session(sta, tid, 0);
 		}
 	}
@@ -1471,7 +1472,7 @@ static void ath_rate_update(void *priv, struct ieee80211_supported_band *sband,
 						   oper_cw40, oper_sgi);
 			ath_rc_init(sc, priv_sta, sband, sta, rate_table);
 
-			ath_dbg(ath9k_hw_common(sc->sc_ah), CONFIG,
+			ath_dbg(ath9k_hw_common(sc->sc_ah), ATH_DBG_CONFIG,
 				"Operating HT Bandwidth changed to: %d\n",
 				sc->hw->conf.channel_type);
 		}
@@ -1479,6 +1480,12 @@ static void ath_rate_update(void *priv, struct ieee80211_supported_band *sband,
 }
 
 #ifdef CONFIG_ATH9K_DEBUGFS
+
+static int ath9k_debugfs_open(struct inode *inode, struct file *file)
+{
+	file->private_data = inode->i_private;
+	return 0;
+}
 
 static ssize_t read_file_rcstat(struct file *file, char __user *user_buf,
 				size_t count, loff_t *ppos)
@@ -1547,7 +1554,7 @@ static ssize_t read_file_rcstat(struct file *file, char __user *user_buf,
 
 static const struct file_operations fops_rcstat = {
 	.read = read_file_rcstat,
-	.open = simple_open,
+	.open = ath9k_debugfs_open,
 	.owner = THIS_MODULE
 };
 

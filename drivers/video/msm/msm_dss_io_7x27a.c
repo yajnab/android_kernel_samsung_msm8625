@@ -157,6 +157,23 @@ static void mipi_dsi_calibration(void)
 	MIPI_OUTP(MIPI_DSI_BASE + 0xf8, 0x00a105a1); /* cal_hw_ctrl */
 }
 
+void mipi_dsi_phy_rdy_poll(void)
+{
+        uint32 phy_pll_busy;
+        uint32 i = 0;
+        uint32 term_cnt = 0xFFFFFF;
+
+        phy_pll_busy = MIPI_INP(MIPI_DSI_BASE + 0x2fc);
+        while (!(phy_pll_busy & 0x1)) {
+                i++;
+                if (i > term_cnt) {
+                        pr_err("DSI1 PHY NOT READY, exceeded polling TIMEOUT!\n");
+                        break;
+                }
+                phy_pll_busy = MIPI_INP(MIPI_DSI_BASE + 0x2fc);
+        }
+}
+
 #define PREF_DIV_RATIO 19
 struct dsiphy_pll_divider_config pll_divider_config;
 
@@ -257,7 +274,9 @@ void mipi_dsi_phy_init(int panel_ndx, struct msm_panel_info const *panel_info,
 
 	MIPI_OUTP(MIPI_DSI_BASE + 0x128, 0x0001);/* start phy sw reset */
 	wmb();
-	usleep(1000);
+//	usleep(1000);
+	msleep(100);
+
 	MIPI_OUTP(MIPI_DSI_BASE + 0x128, 0x0000);/* end phy w reset */
 	wmb();
 	usleep(1000);
@@ -404,6 +423,7 @@ void mipi_dsi_clk_enable(void)
 	MIPI_OUTP(MIPI_DSI_BASE + 0x0200, pll_ctrl | 0x01);
 	mb();
 
+	 mipi_dsi_phy_rdy_poll();
 	clk_set_rate(dsi_byte_div_clk, data);
 	clk_set_rate(dsi_esc_clk, data);
 	clk_enable(mdp_dsi_pclk);
@@ -476,7 +496,16 @@ void update_lane_config(struct msm_panel_info *pinfo)
 	pd = (pinfo->mipi).dsi_phy_db;
 	pinfo->mipi.data_lane1 = FALSE;
 	pd->pll[10] |= 0x08;
-
+	
+#if defined(CONFIG_MACH_ROY)
+	pinfo->yres = 480;//320
+	pinfo->lcdc.h_back_porch = 100;
+	pinfo->lcdc.h_front_porch = 100;
+	pinfo->lcdc.h_pulse_width = 8;
+	pinfo->lcdc.v_back_porch = 20;
+	pinfo->lcdc.v_front_porch = 20;
+	pinfo->lcdc.v_pulse_width = 1;
+#else 
 	pinfo->yres = 320;
 	pinfo->lcdc.h_back_porch = 15;
 	pinfo->lcdc.h_front_porch = 21;
@@ -484,5 +513,7 @@ void update_lane_config(struct msm_panel_info *pinfo)
 	pinfo->lcdc.v_back_porch = 50;
 	pinfo->lcdc.v_front_porch = 101;
 	pinfo->lcdc.v_pulse_width = 50;
+#endif
+
 }
 #endif

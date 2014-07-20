@@ -125,10 +125,14 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_TIME_TO_FULL_AVG,
 	POWER_SUPPLY_PROP_TYPE, /* use power_supply.type instead */
 	POWER_SUPPLY_PROP_SCOPE,
+	POWER_SUPPLY_PROP_FUELGAUGE_STATE, /*for SAMSUNG fuelgauging */
 	/* Properties of type `const char *' */
 	POWER_SUPPLY_PROP_MODEL_NAME,
 	POWER_SUPPLY_PROP_MANUFACTURER,
 	POWER_SUPPLY_PROP_SERIAL_NUMBER,
+	/*Fuelgauge properties*/
+	POWER_SUPPLY_PROP_FUELGAUGE_RCONFIG,
+	POWER_SUPPLY_PROP_FUELGAUGE_RESET,
 };
 
 enum power_supply_type {
@@ -140,6 +144,15 @@ enum power_supply_type {
 	POWER_SUPPLY_TYPE_USB_DCP,	/* Dedicated Charging Port */
 	POWER_SUPPLY_TYPE_USB_CDP,	/* Charging Downstream Port */
 	POWER_SUPPLY_TYPE_USB_ACA,	/* Accessory Charger Adapters */
+	POWER_SUPPLY_TYPE_MISC,
+	POWER_SUPPLY_TYPE_CARDOCK,
+	POWER_SUPPLY_TYPE_UARTOFF,
+#ifdef CONFIG_WIRELESS_CHARGING
+	POWER_SUPPLY_TYPE_WPC,		/* Wireless Charging should be 10 */
+#else
+	POWER_SUPPLY_TYPE_DUMMY,	/* # 10 is assigned for wireless */
+#endif
+	POWER_SUPPLY_TYPE_OTG,
 };
 
 union power_supply_propval {

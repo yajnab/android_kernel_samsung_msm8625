@@ -587,6 +587,8 @@ int msm_server_close_client(int idx);
 int msm_cam_server_open_mctl_session(struct msm_cam_v4l2_device *pcam,
 	int *p_active);
 int msm_cam_server_close_mctl_session(struct msm_cam_v4l2_device *pcam);
+extern void sensor_native_control(void __user *arg);
+extern void sensor_native_control_front(void __user *arg);
 #endif /* __KERNEL__ */
 
 #endif /* _MSM_H */

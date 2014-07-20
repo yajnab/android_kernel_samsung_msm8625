@@ -164,6 +164,7 @@ extern struct clock_init_data fsm9xxx_clock_init_data;
 extern struct clock_init_data msm7x01a_clock_init_data;
 extern struct clock_init_data msm7x27_clock_init_data;
 extern struct clock_init_data msm7x27a_clock_init_data;
+extern struct clock_init_data msm7x27a_clock_init_data_except_uart3;
 extern struct clock_init_data msm7x30_clock_init_data;
 extern struct clock_init_data msm8960_clock_init_data;
 extern struct clock_init_data msm8x60_clock_init_data;
@@ -181,7 +182,7 @@ int clock_debug_init(struct clock_init_data *data);
 int clock_debug_add(struct clk *clock);
 void clock_debug_print_enabled(void);
 #else
-static inline int clock_debug_init(struct clk_init_data *data) { return 0; }
+static inline int clock_debug_init(struct clock_init_data *data) { return 0; }
 static inline int clock_debug_add(struct clk *clock) { return 0; }
 static inline void clock_debug_print_enabled(void) { return; }
 #endif

@@ -24,7 +24,7 @@ endif
 
 obj-y += acpuclock.o
 obj-$(CONFIG_ARCH_MSM_KRAIT) += acpuclock-krait.o
-obj-$(CONFIG_ARCH_MSM7X27) += acpuclock-7627.o clock-pll.o
+obj-$(CONFIG_ARCH_MSM7X27) += acpuclock-7627.o acpuclock-8625q.o clock-pll.o
 obj-$(CONFIG_ARCH_MSM_SCORPION) += pmu.o
 obj-$(CONFIG_ARCH_MSM_SCORPIONMP) += perf_event_msm_l2.o
 obj-$(CONFIG_ARCH_MSM_KRAIT) += msm-krait-l2-accessors.o pmu.o perf_event_msm_krait_l2.o
@@ -247,19 +247,28 @@ obj-$(CONFIG_ARCH_MSM7X27A) += clock-pcom-lookup.o devices-msm7x27a.o
 board-7627a-all-objs += board-msm7627a-storage.o board-msm7627a-bt.o board-msm7627a-camera.o
 board-7627a-all-objs += audio-7627a-devices.o
 board-7627a-all-objs += board-msm7627a-display.o board-msm7627a-wlan.o board-msm7627a-io.o
-obj-$(CONFIG_MACH_MSM7X27A_RUMI3) += board-msm7x27a.o board-7627a-all.o
-obj-$(CONFIG_MACH_MSM7X27A_SURF) += board-msm7x27a.o board-7627a-all.o
-obj-$(CONFIG_MACH_MSM7X27A_FFA) += board-msm7x27a.o board-7627a-all.o
-obj-$(CONFIG_MACH_MSM7627A_QRD1) += board-qrd7627a.o board-7627a-all.o
-obj-$(CONFIG_MACH_MSM7627A_QRD3) += board-qrd7627a.o board-7627a-all.o
-obj-$(CONFIG_MACH_MSM7627A_EVB) += board-qrd7627a.o board-7627a-all.o
+obj-$(CONFIG_MACH_MSM7X27A_RUMI3) += board-7627a-all.o
+obj-$(CONFIG_MACH_MSM7X27A_SURF) += board-7627a-all.o
+obj-$(CONFIG_MACH_MSM7X27A_FFA) += board-7627a-all.o
+obj-$(CONFIG_MACH_MSM7627A_QRD1) += board-7627a-all.o
+obj-$(CONFIG_MACH_MSM7627A_QRD3) += board-7627a-all.o
+obj-$(CONFIG_MACH_MSM7627A_EVB) += board-7627a-all.o
 obj-$(CONFIG_ARCH_MSM8625) += msm_smem_iface.o devices-msm7x27a.o clock-pcom-lookup.o mpm-8625.o
-obj-$(CONFIG_MACH_MSM8625_RUMI3) += board-msm7x27a.o
-obj-$(CONFIG_MACH_MSM8625_SURF) +=  board-msm7x27a.o board-7627a-all.o
-obj-$(CONFIG_MACH_MSM8625_EVB) +=  board-qrd7627a.o board-7627a-all.o
-obj-$(CONFIG_MACH_MSM8625_QRD7) +=  board-qrd7627a.o board-7627a-all.o
-obj-$(CONFIG_MACH_MSM8625_FFA) += board-msm7x27a.o board-7627a-all.o
-obj-$(CONFIG_MACH_MSM8625_EVT) += board-msm7x27a.o board-7627a-all.o
+obj-$(CONFIG_MACH_MSM8625_RUMI3) += board-7627a-all.o
+obj-$(CONFIG_MACH_MSM8625_SURF) += board-7627a-all.o
+obj-$(CONFIG_MACH_MSM8625_EVB) +=  board-7627a-all.o
+obj-$(CONFIG_MACH_MSM8625_QRD7) +=  board-7627a-all.o
+obj-$(CONFIG_MACH_QRD_SKUD_PRIME) +=  board-7627a-all.o
+obj-$(CONFIG_MACH_MSM8625_FFA) += board-7627a-all.o
+obj-$(CONFIG_MACH_MSM8625_EVT) += board-7627a-all.o
+obj-$(CONFIG_MACH_ARUBA_CTC) += board-aruba_ctc.o  board-aruba-ctc-modems.o
+obj-$(CONFIG_MACH_KYLEPLUS_CTC) += board-aruba_ctc.o  
+obj-$(CONFIG_MACH_ARUBA_OPEN)+= board-aruba_open.o
+obj-$(CONFIG_MACH_DELOS_OPEN) += board-delos_open.o
+obj-$(CONFIG_MACH_ARUBASLIM_OPEN)+= board-aruba_open.o
+obj-$(CONFIG_MACH_ROY) += board-roy.o
+obj-$(CONFIG_MACH_DELOS_CTC) += board-delos_ctc.o  board-aruba-ctc-modems.o
+obj-$(CONFIG_MACH_HENNESSY_DUOS_CTC) += board-delos_ctc.o  board-aruba-ctc-modems.o
 obj-$(CONFIG_ARCH_MSM7X30) += board-msm7x30.o devices-msm7x30.o memory_topology.o
 obj-$(CONFIG_ARCH_MSM7X30) += clock-local.o clock-7x30.o acpuclock-7x30.o clock-pll.o
 obj-$(CONFIG_MACH_MSM7X25_SURF) += board-msm7x27.o devices-msm7x25.o
@@ -299,13 +308,33 @@ obj-$(CONFIG_ARCH_MSM8974) += clock-local2.o clock-pll.o clock-8974.o clock-rpm.
 obj-$(CONFIG_ARCH_MSM8974) += gdsc.o
 obj-$(CONFIG_ARCH_MSM9625) += board-9625.o board-9625-gpiomux.o
 obj-$(CONFIG_ARCH_MSM8930) += acpuclock-8930.o acpuclock-8627.o acpuclock-8930aa.o
+obj-$(CONFIG_MACH_GEIM) += wlan-prealloc.o board-geim.o
+obj-$(CONFIG_MACH_JENA) += wlan-prealloc.o board-jena.o
+
+ifdef CONFIG_MACH_ARUBA_OPEN
+		ifdef CONFIG_MACH_KYLEPLUS_OPEN
+			obj-$(CONFIG_ARCH_MSM7X27) += msm_vibrator.o
+			CFLAGS_msm_vibrator.o += -Idrivers/staging/android
+		else	
+			obj-$(CONFIG_ARCH_MSM7X27) += msm_vibrator_aruba.o
+			CFLAGS_msm_vibrator_aruba.o += -Idrivers/staging/android
+		endif	
+else
+ifdef CONFIG_MSM_PMIC_VIBRATOR
+obj-$(CONFIG_ARCH_MSM7X27) += msm_pmic_vibrator.o
+	CFLAGS_msm_pmic_vibrator.o += -Idrivers/staging/android
+else
+obj-$(CONFIG_ARCH_MSM7X27) += msm_vibrator.o
+	CFLAGS_msm_vibrator.o += -Idrivers/staging/android
+endif	
+endif	
 
 obj-$(CONFIG_MACH_SAPPHIRE) += board-sapphire.o board-sapphire-gpio.o
 obj-$(CONFIG_MACH_SAPPHIRE) += board-sapphire-keypad.o board-sapphire-panel.o
 obj-$(CONFIG_MACH_SAPPHIRE) += board-sapphire-mmc.o board-sapphire-wifi.o
 obj-$(CONFIG_MACH_SAPPHIRE) += board-sapphire-rfkill.o msm_vibrator.o
 
-CFLAGS_msm_vibrator.o += -Idrivers/staging/android
+
 CFLAGS_board-9615.o += -Idrivers/usb/gadget
 
 obj-$(CONFIG_ARCH_FSM9XXX) += board-fsm9xxx.o
@@ -391,3 +420,5 @@ obj-$(CONFIG_DEBUG_FS) += msm_cpr-debug.o
 endif
 obj-$(CONFIG_MSM_FIQ) += msm7k_fiq.o
 obj-$(CONFIG_MSM_FIQ) += msm7k_fiq_handler.o
+
+obj-$(CONFIG_SEC_LOG_LAST_KMSG) += sec_log.o

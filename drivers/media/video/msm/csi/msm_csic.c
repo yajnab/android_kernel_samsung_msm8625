@@ -223,6 +223,9 @@ static irqreturn_t msm_csic_irq(int irq_num, void *data)
 	uint32_t irq;
 	struct csic_device *csic_dev = data;
 
+	if (!csic_dev->base) 
+		  return IRQ_HANDLED; 
+
 	pr_info("msm_csic_irq: %x\n", (unsigned int)csic_dev->base);
 	irq = msm_camera_io_r(csic_dev->base + MIPI_INTERRUPT_STATUS);
 	pr_info("%s MIPI_INTERRUPT_STATUS = 0x%x 0x%x\n",

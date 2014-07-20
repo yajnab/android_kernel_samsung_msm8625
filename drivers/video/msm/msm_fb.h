@@ -80,7 +80,7 @@ struct msm_fb_data_type {
 	DISP_TARGET dest;
 	struct fb_info *fbi;
 
-	struct device *dev;
+	struct delayed_work backlight_worker;
 	boolean op_enable;
 	uint32 fb_imgType;
 	boolean sw_currently_refreshing;
@@ -218,6 +218,9 @@ int msm_fb_check_frame_rate(struct msm_fb_data_type *mfd,
 
 #ifdef CONFIG_FB_MSM_LOGO
 #define INIT_IMAGE_FILE "/initlogo.rle"
+#if defined(CONFIG_VARIANT_SECOND_BOOTIMAGE)
+#define INIT_IMAGE_VARIANT_FILE "/initlogo_swa.rle"
+#endif
 int load_565rle_image(char *filename, bool bf_supported);
 #endif
 

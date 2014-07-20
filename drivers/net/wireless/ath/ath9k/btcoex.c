@@ -21,7 +21,7 @@ enum ath_bt_mode {
 	ATH_BT_COEX_MODE_LEGACY,        /* legacy rx_clear mode */
 	ATH_BT_COEX_MODE_UNSLOTTED,     /* untimed/unslotted mode */
 	ATH_BT_COEX_MODE_SLOTTED,       /* slotted mode */
-	ATH_BT_COEX_MODE_DISABLED,      /* coexistence disabled */
+	ATH_BT_COEX_MODE_DISALBED,      /* coexistence disabled */
 };
 
 struct ath_btcoex_config {
@@ -95,40 +95,6 @@ void ath9k_hw_init_btcoex_hw(struct ath_hw *ah, int qnum)
 }
 EXPORT_SYMBOL(ath9k_hw_init_btcoex_hw);
 
-void ath9k_hw_btcoex_init_scheme(struct ath_hw *ah)
-{
-	struct ath_common *common = ath9k_hw_common(ah);
-	struct ath_btcoex_hw *btcoex_hw = &ah->btcoex_hw;
-
-	/*
-	 * Check if BTCOEX is globally disabled.
-	 */
-	if (!common->btcoex_enabled) {
-		btcoex_hw->scheme = ATH_BTCOEX_CFG_NONE;
-		return;
-	}
-
-	if (AR_SREV_9462(ah)) {
-		btcoex_hw->scheme = ATH_BTCOEX_CFG_MCI;
-	} else if (AR_SREV_9300_20_OR_LATER(ah)) {
-		btcoex_hw->scheme = ATH_BTCOEX_CFG_3WIRE;
-		btcoex_hw->btactive_gpio = ATH_BTACTIVE_GPIO_9300;
-		btcoex_hw->wlanactive_gpio = ATH_WLANACTIVE_GPIO_9300;
-		btcoex_hw->btpriority_gpio = ATH_BTPRIORITY_GPIO_9300;
-	} else if (AR_SREV_9280_20_OR_LATER(ah)) {
-		btcoex_hw->btactive_gpio = ATH_BTACTIVE_GPIO_9280;
-		btcoex_hw->wlanactive_gpio = ATH_WLANACTIVE_GPIO_9280;
-
-		if (AR_SREV_9285(ah)) {
-			btcoex_hw->scheme = ATH_BTCOEX_CFG_3WIRE;
-			btcoex_hw->btpriority_gpio = ATH_BTPRIORITY_GPIO_9285;
-		} else {
-			btcoex_hw->scheme = ATH_BTCOEX_CFG_2WIRE;
-		}
-	}
-}
-EXPORT_SYMBOL(ath9k_hw_btcoex_init_scheme);
-
 void ath9k_hw_btcoex_init_2wire(struct ath_hw *ah)
 {
 	struct ath_btcoex_hw *btcoex_hw = &ah->btcoex_hw;
@@ -176,30 +142,6 @@ void ath9k_hw_btcoex_init_3wire(struct ath_hw *ah)
 	ath9k_hw_cfg_gpio_input(ah, btcoex_hw->btpriority_gpio);
 }
 EXPORT_SYMBOL(ath9k_hw_btcoex_init_3wire);
-
-void ath9k_hw_btcoex_init_mci(struct ath_hw *ah)
-{
-	ah->btcoex_hw.mci.ready = false;
-	ah->btcoex_hw.mci.bt_state = 0;
-	ah->btcoex_hw.mci.bt_ver_major = 3;
-	ah->btcoex_hw.mci.bt_ver_minor = 0;
-	ah->btcoex_hw.mci.bt_version_known = false;
-	ah->btcoex_hw.mci.update_2g5g = true;
-	ah->btcoex_hw.mci.is_2g = true;
-	ah->btcoex_hw.mci.wlan_channels_update = false;
-	ah->btcoex_hw.mci.wlan_channels[0] = 0x00000000;
-	ah->btcoex_hw.mci.wlan_channels[1] = 0xffffffff;
-	ah->btcoex_hw.mci.wlan_channels[2] = 0xffffffff;
-	ah->btcoex_hw.mci.wlan_channels[3] = 0x7fffffff;
-	ah->btcoex_hw.mci.query_bt = true;
-	ah->btcoex_hw.mci.unhalt_bt_gpm = true;
-	ah->btcoex_hw.mci.halted_bt_gpm = false;
-	ah->btcoex_hw.mci.need_flush_btinfo = false;
-	ah->btcoex_hw.mci.wlan_cal_seq = 0;
-	ah->btcoex_hw.mci.wlan_cal_done = 0;
-	ah->btcoex_hw.mci.config = 0x2201;
-}
-EXPORT_SYMBOL(ath9k_hw_btcoex_init_mci);
 
 static void ath9k_hw_btcoex_enable_2wire(struct ath_hw *ah)
 {
@@ -277,9 +219,9 @@ void ath9k_hw_btcoex_enable(struct ath_hw *ah)
 {
 	struct ath_btcoex_hw *btcoex_hw = &ah->btcoex_hw;
 
-	switch (ath9k_hw_get_btcoex_scheme(ah)) {
+	switch (btcoex_hw->scheme) {
 	case ATH_BTCOEX_CFG_NONE:
-		return;
+		break;
 	case ATH_BTCOEX_CFG_2WIRE:
 		ath9k_hw_btcoex_enable_2wire(ah);
 		break;
@@ -371,7 +313,8 @@ void ath9k_hw_btcoex_bt_stomp(struct ath_hw *ah,
 				AR_STOMP_NONE_WLAN_WGHT);
 		break;
 	default:
-		ath_dbg(ath9k_hw_common(ah), BTCOEX, "Invalid Stomptype\n");
+		ath_dbg(ath9k_hw_common(ah), ATH_DBG_BTCOEX,
+				"Invalid Stomptype\n");
 		break;
 	}
 }

@@ -14,6 +14,16 @@
 #include <linux/compiler.h>
 
 /*
+ * Packet sizes
+ */
+
+#define PPP_MTU		1500	/* Default MTU (size of Info field) */
+#define PPP_MAXMRU	65000	/* Largest MRU we allow */
+#define PROTO_IPX	0x002b	/* protocol numbers */
+#define PROTO_DNA_RT    0x0027  /* DNA Routing */
+
+
+/*
  * Bit definitions for flags argument to PPPIOCGFLAGS/PPPIOCSFLAGS.
  */
 #define SC_COMP_PROT	0x00000001	/* protocol compression (output) */
@@ -62,6 +72,16 @@ struct ppp_option_data {
 	int	transmit;
 };
 
+struct ifpppstatsreq {
+	struct ifreq	 b;
+	struct ppp_stats stats;			/* statistic information */
+};
+
+struct ifpppcstatsreq {
+	struct ifreq	      b;
+	struct ppp_comp_stats stats;
+};
+
 /* For PPPIOCGL2TPSTATS */
 struct pppol2tp_ioc_stats {
 	__u16		tunnel_id;	/* redundant */
@@ -76,6 +96,9 @@ struct pppol2tp_ioc_stats {
 	__aligned_u64	rx_oos_packets;
 	__aligned_u64	rx_errors;
 };
+
+#define ifr__name       b.ifr_ifrn.ifrn_name
+#define stats_ptr       b.ifr_ifru.ifru_data
 
 /*
  * Ioctl definitions.
@@ -115,5 +138,9 @@ struct pppol2tp_ioc_stats {
 #define SIOCGPPPSTATS   (SIOCDEVPRIVATE + 0)
 #define SIOCGPPPVER     (SIOCDEVPRIVATE + 1)	/* NEVER change this!! */
 #define SIOCGPPPCSTATS  (SIOCDEVPRIVATE + 2)
+
+#if !defined(ifr_mtu)
+#define ifr_mtu	ifr_ifru.ifru_metric
+#endif
 
 #endif /* _PPP_IOCTL_H */

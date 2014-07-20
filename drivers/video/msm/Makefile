@@ -81,9 +81,19 @@ obj-$(CONFIG_FB_MSM_MIPI_DSI_NOVATEK) += mipi_novatek.o
 obj-$(CONFIG_FB_MSM_MIPI_DSI_ORISE) += mipi_orise.o
 obj-$(CONFIG_FB_MSM_MIPI_DSI_RENESAS) += mipi_renesas.o
 obj-$(CONFIG_FB_MSM_MIPI_DSI_TRULY) += mipi_truly.o
-obj-$(CONFIG_FB_MSM_MIPI_DSI_NT35510) += mipi_NT35510.o
+obj-$(CONFIG_FB_MSM_MIPI_DSI_NT35510) += mipi_NT35510.o lcdc_backlight_ic.o
 obj-$(CONFIG_FB_MSM_MIPI_DSI_NT35516) += mipi_truly_tft540960_1_e.o
 obj-$(CONFIG_FB_MSM_MIPI_DSI_SIMULATOR) += mipi_simulator.o
+
+# Samsung
+obj-$(CONFIG_FB_MSM_MIPI_DSI_HX8357) += mipi_HX8357.o lcdc_backlight_ic.o
+obj-$(CONFIG_FB_MSM_LCDC_ILI9486L) += lcdc_ILI9486L_hvga.o lcdc_backlight.o
+
+ifeq ($(CONFIG_MACH_BAFFIN_DUOS_CTC),y)
+obj-$(CONFIG_FB_MSM_MIPI_DSI_HX8369B) += mipi_HX8369B_baffinduos.o lcdc_backlight_ic.o
+else
+obj-$(CONFIG_FB_MSM_MIPI_DSI_HX8369B) += mipi_HX8369B.o lcdc_backlight_ic.o
+endif
 
 # MIPI Bridge
 obj-$(CONFIG_FB_MSM_MIPI_DSI_TC358764_DSI2LVDS) += mipi_tc358764_dsi2lvds.o
@@ -148,6 +158,10 @@ obj-$(CONFIG_FB_MSM_MIPI_NT35516_VIDEO_QHD_PT) += mipi_truly_tft540960_1_e_video
 obj-$(CONFIG_FB_MSM_MIPI_SIMULATOR_VIDEO) += mipi_simulator_video.o
 obj-$(CONFIG_FB_MSM_MIPI_CHIMEI_WXGA) += mipi_chimei_wxga_pt.o
 obj-$(CONFIG_FB_MSM_MIPI_CHIMEI_WUXGA) += mipi_chimei_wuxga.o
+
+# Samsung
+obj-$(CONFIG_FB_MSM_MIPI_HX8369B_WVGA_PT) += mipi_HX8369B_video_wvga_pt.o
+obj-$(CONFIG_FB_MSM_MIPI_HX8357_CMD_SMD_HVGA_PT) += mipi_HX8357_cmd_smd_hvga_pt.o
 endif
 
 obj-$(CONFIG_FB_MSM_LCDC_PANEL) += lcdc_panel.o

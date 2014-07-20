@@ -1735,7 +1735,7 @@ static int __devinit vcap_probe(struct platform_device *pdev)
 	if (ret < 0) {
 		pr_err("%s: vp irq request fail\n", __func__);
 		ret = -EBUSY;
-		goto free_resource;
+		goto free_irq1;
 	}
 	disable_irq(dev->vpirq->start);
 
@@ -1744,7 +1744,7 @@ static int __devinit vcap_probe(struct platform_device *pdev)
 
 	ret = v4l2_device_register(NULL, &dev->v4l2_dev);
 	if (ret)
-		goto free_resource;
+		goto free_irq2;
 
 	ret = vcap_enable(dev, &pdev->dev, 54860000);
 	if (ret)
@@ -1802,6 +1802,10 @@ power_down:
 	vcap_disable(dev);
 unreg_dev:
 	v4l2_device_unregister(&dev->v4l2_dev);
+free_irq2:
+	free_irq(dev->vpirq->start,0);
+free_irq1:
+	free_irq(dev->vcirq->start,0);	
 free_resource:
 	iounmap(dev->vcapbase);
 	release_mem_region(dev->vcapmem->start, resource_size(dev->vcapmem));

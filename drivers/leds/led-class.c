@@ -24,6 +24,7 @@
 #define LED_BUFF_SIZE 50
 
 static struct class *leds_class;
+static unsigned long led_user_brightness = LED_HALF;
 
 static void led_update_brightness(struct led_classdev *led_cdev)
 {
@@ -60,6 +61,7 @@ static ssize_t led_brightness_store(struct device *dev,
 		if (state == LED_OFF)
 			led_trigger_remove(led_cdev);
 		led_set_brightness(led_cdev, state);
+		led_user_brightness = state;
 	}
 
 	return ret;
@@ -79,6 +81,7 @@ static ssize_t led_max_brightness_store(struct device *dev,
 			state = LED_FULL;
 		led_cdev->max_brightness = state;
 		led_set_brightness(led_cdev, led_cdev->brightness);
+		led_user_brightness = state;
 	}
 
 	return ret;
@@ -92,6 +95,13 @@ static ssize_t led_max_brightness_show(struct device *dev,
 	return snprintf(buf, LED_BUFF_SIZE, "%u\n", led_cdev->max_brightness);
 }
 
+static ssize_t led_user_brightness_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int rc = sprintf(buf, "%lu\n", led_user_brightness);
+	return rc;
+}
+
 static struct device_attribute led_class_attrs[] = {
 	__ATTR(brightness, 0644, led_brightness_show, led_brightness_store),
 	__ATTR(max_brightness, 0644, led_max_brightness_show,
@@ -99,6 +109,7 @@ static struct device_attribute led_class_attrs[] = {
 #ifdef CONFIG_LEDS_TRIGGERS
 	__ATTR(trigger, 0644, led_trigger_show, led_trigger_store),
 #endif
+	__ATTR(user_brightness, 0444, led_user_brightness_show, NULL),
 	__ATTR_NULL,
 };
 
@@ -110,6 +121,7 @@ static void led_timer_function(unsigned long data)
 
 	if (!led_cdev->blink_delay_on || !led_cdev->blink_delay_off) {
 		led_set_brightness(led_cdev, LED_OFF);
+		led_user_brightness = LED_OFF;
 		return;
 	}
 
@@ -128,6 +140,7 @@ static void led_timer_function(unsigned long data)
 	}
 
 	led_set_brightness(led_cdev, brightness);
+	led_user_brightness = brightness;
 
 	mod_timer(&led_cdev->blink_timer, jiffies + msecs_to_jiffies(delay));
 }

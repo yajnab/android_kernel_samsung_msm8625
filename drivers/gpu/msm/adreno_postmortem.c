@@ -12,6 +12,7 @@
  */
 
 #include <linux/vmalloc.h>
+#include <mach/board.h>
 
 #include "kgsl.h"
 #include "kgsl_sharedmem.h"
@@ -514,6 +515,7 @@ static void adreno_dump_a2xx(struct kgsl_device *device)
 	KGSL_LOG_DUMP(device, "RBBM:   STATUS   = %08X | PM_OVERRIDE1 = %08X | "
 		"PM_OVERRIDE2 = %08X\n", rbbm_status, r2, r3);
 
+        KGSL_LOG_DUMP(device, " CP_FLAGS = %08x \n", device->cp_flags);
 	kgsl_regread(device, REG_RBBM_INT_CNTL, &r1);
 	kgsl_regread(device, REG_RBBM_INT_STATUS, &r2);
 	kgsl_regread(device, REG_RBBM_READ_ERROR, &r3);
@@ -704,6 +706,8 @@ static int adreno_dump(struct kgsl_device *device)
 	int num_iommu_units = 0;
 
 	mb();
+
+	msm_clk_dump_debug_info();
 
 	if (adreno_is_a2xx(adreno_dev))
 		adreno_dump_a2xx(device);
@@ -921,6 +925,9 @@ int adreno_postmortem_dump(struct kgsl_device *device, int manual)
 
 	KGSL_LOG_DUMP(device, "POWER: INTERVAL TIMEOUT = %08X ",
 		pwr->interval_timeout);
+
+	KGSL_LOG_DUMP(device, "POWER: NAP ALLOWED = %d | START_STOP_SLEEP_WAKE = %d\n",
+	pwr->nap_allowed, pwr->strtstp_sleepwake);
 
 	KGSL_LOG_DUMP(device, "GRP_CLK = %lu ",
 				  kgsl_get_clkrate(pwr->grp_clks[0]));

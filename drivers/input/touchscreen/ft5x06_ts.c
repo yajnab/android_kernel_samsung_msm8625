@@ -35,8 +35,10 @@
 
 #define CFG_MAX_TOUCH_POINTS	5
 
-#define FT_STARTUP_DLY		150
+#define FT_STARTUP_DLY		250
 #define FT_RESET_DLY		20
+#define FT_DELAY_DFLT		20
+#define FT_NUM_RETRY		10
 
 #define FT_PRESS		0x7F
 #define FT_MAX_ID		0x0F
@@ -407,6 +409,7 @@ static int ft5x06_ts_probe(struct i2c_client *client,
 	u8 reg_value;
 	u8 reg_addr;
 	int err;
+	int tries;
 
 	if (!pdata) {
 		dev_err(&client->dev, "Invalid pdata\n");
@@ -445,7 +448,6 @@ static int ft5x06_ts_probe(struct i2c_client *client,
 	__set_bit(EV_KEY, input_dev->evbit);
 	__set_bit(EV_ABS, input_dev->evbit);
 	__set_bit(BTN_TOUCH, input_dev->keybit);
-	__set_bit(INPUT_PROP_DIRECT, input_dev->propbit);
 
 	input_set_abs_params(input_dev, ABS_MT_POSITION_X, 0,
 			     pdata->x_max, 0, 0);
@@ -525,25 +527,49 @@ static int ft5x06_ts_probe(struct i2c_client *client,
 	msleep(FT_STARTUP_DLY);
 
 	/*get some register information */
+	/* read firmware version */
 	reg_addr = FT5X06_REG_FW_VER;
-	err = ft5x06_i2c_read(client, &reg_addr, 1, &reg_value, 1);
-	if (err)
-		dev_err(&client->dev, "version read failed");
+	tries = FT_NUM_RETRY;
+	do {
+		err = ft5x06_i2c_read(client, &reg_addr, 1, &reg_value, 1);
+		msleep(FT_DELAY_DFLT);
+	} while ((err < 0) && tries--);
 
+	if (err < 0) {
+		dev_err(&client->dev, "version read failed");
+		goto free_reset_gpio;
+	}
 	dev_info(&client->dev, "[FTS] Firmware version = 0x%x\n", reg_value);
 
+	/* Read report rate */
 	reg_addr = FT5X06_REG_POINT_RATE;
-	ft5x06_i2c_read(client, &reg_addr, 1, &reg_value, 1);
-	if (err)
+	tries = FT_NUM_RETRY;
+	do {
+		err = ft5x06_i2c_read(client, &reg_addr, 1, &reg_value, 1);
+		msleep(FT_DELAY_DFLT);
+	} while ((err < 0) && tries--);
+
+	if (err < 0) {
 		dev_err(&client->dev, "report rate read failed");
+		goto free_reset_gpio;
+	}
 	dev_info(&client->dev, "[FTS] report rate is %dHz.\n", reg_value * 10);
 
+	/* read touch threshold */
 	reg_addr = FT5X06_REG_THGROUP;
-	err = ft5x06_i2c_read(client, &reg_addr, 1, &reg_value, 1);
-	if (err)
+	tries = FT_NUM_RETRY;
+	do {
+		err = ft5x06_i2c_read(client, &reg_addr, 1, &reg_value, 1);
+		msleep(FT_DELAY_DFLT);
+	} while ((err < 0) && tries--);
+
+	if (err < 0) {
 		dev_err(&client->dev, "threshold read failed");
+		goto free_reset_gpio;
+	}
 	dev_dbg(&client->dev, "[FTS] touch threshold is %d.\n", reg_value * 4);
 
+	/* Requesting irq */
 	err = request_threaded_irq(client->irq, NULL,
 				   ft5x06_ts_interrupt, pdata->irqflags,
 				   client->dev.driver->name, data);

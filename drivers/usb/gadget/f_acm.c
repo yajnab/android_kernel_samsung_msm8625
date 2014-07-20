@@ -24,7 +24,11 @@
 #include "u_serial.h"
 #include "gadget_chips.h"
 
-
+#ifdef CONFIG_USB_DUN_SUPPORT
+extern void acmdata_register(void * data);
+extern void acmdata_unregister(void);
+extern void notify_dun_control_line_state(u32 value);
+#endif
 /*
  * This CDC ACM function support just wraps control functions and
  * notifications around the generic serial-over-usb code.
@@ -49,6 +53,7 @@ struct f_acm {
 	enum transport_type		transport;
 
 	u8				pending;
+	u8				online;
 
 	/* lock is mostly for pending and notify_req ... they get accessed
 	 * by callbacks both from tty (open/close/break) under its spinlock,
@@ -437,6 +442,7 @@ static int acm_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 	u16			w_value = le16_to_cpu(ctrl->wValue);
 	u16			w_length = le16_to_cpu(ctrl->wLength);
 
+        printk(KERN_ERR "acm_setup(modem)\r\n");
 	/* composite driver infrastructure handles everything except
 	 * CDC class messages; interface activation uses set_alt().
 	 *
@@ -483,6 +489,10 @@ static int acm_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 
 			acm->port.notify_modem(&acm->port, port_num, w_value);
 		}
+
+		#ifdef CONFIG_USB_DUN_SUPPORT
+		notify_dun_control_line_state((unsigned long)w_value);
+                #endif
 		break;
 
 	default:
@@ -558,6 +568,7 @@ static int acm_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 
 	} else
 		return -EINVAL;
+	acm->online = 1;
 
 	return 0;
 }
@@ -570,6 +581,7 @@ static void acm_disable(struct usb_function *f)
 	DBG(cdev, "acm ttyGS%d deactivated\n", acm->port_num);
 	acm_port_disconnect(acm);
 	usb_ep_disable(acm->notify);
+	acm->online = 0;
 	acm->notify->driver_data = NULL;
 }
 
@@ -616,9 +628,7 @@ static int acm_cdc_notify(struct f_acm *acm, u8 type, u16 value,
 	memcpy(buf, data, length);
 
 	/* ep_queue() can complete immediately if it fills the fifo... */
-	spin_unlock(&acm->lock);
 	status = usb_ep_queue(ep, req, GFP_ATOMIC);
-	spin_lock(&acm->lock);
 
 	if (status < 0) {
 		ERROR(acm->port.func.config->cdev,
@@ -634,8 +644,9 @@ static int acm_notify_serial_state(struct f_acm *acm)
 {
 	struct usb_composite_dev *cdev = acm->port.func.config->cdev;
 	int			status;
+	unsigned long           flags;
 
-	spin_lock(&acm->lock);
+	spin_lock_irqsave(&acm->lock, flags);
 	if (acm->notify_req) {
 		DBG(cdev, "acm ttyGS%d serial state %04x\n",
 				acm->port_num, acm->serial_state);
@@ -645,7 +656,7 @@ static int acm_notify_serial_state(struct f_acm *acm)
 		acm->pending = true;
 		status = 0;
 	}
-	spin_unlock(&acm->lock);
+	spin_unlock_irqrestore(&acm->lock, flags);
 	return status;
 }
 
@@ -653,20 +664,34 @@ static void acm_cdc_notify_complete(struct usb_ep *ep, struct usb_request *req)
 {
 	struct f_acm		*acm = req->context;
 	u8			doit = false;
+	unsigned long           flags;
 
 	/* on this call path we do NOT hold the port spinlock,
 	 * which is why ACM needs its own spinlock
 	 */
-	spin_lock(&acm->lock);
+	spin_lock_irqsave(&acm->lock, flags);
+
 	if (req->status != -ESHUTDOWN)
 		doit = acm->pending;
 	acm->notify_req = req;
-	spin_unlock(&acm->lock);
+	spin_unlock_irqrestore(&acm->lock, flags);
 
 	if (doit)
 		acm_notify_serial_state(acm);
 }
+#ifdef CONFIG_USB_DUN_SUPPORT
+void acm_notify(void * dev, u16 state)
+{
+	struct f_acm	*acm = (struct f_acm *)dev;
 
+	acm->serial_state = state;
+
+	if(acm->online)
+	{
+		acm_notify_serial_state(acm);
+	}
+}
+#endif
 /* connect == the TTY link is open */
 
 static void acm_connect(struct gserial *port)
@@ -677,6 +702,56 @@ static void acm_connect(struct gserial *port)
 	acm_notify_serial_state(acm);
 }
 
+//Add for DUN
+unsigned int acm_get_dtr(struct gserial *port)
+{
+        struct f_gser *gser = port_to_gser(port);
+
+        printk(KERN_ERR "DTR state =  %d\r\n", (gser->port_handshake_bits & ACM_CTRL_DTR)? 1 : 0);
+
+        if (gser->port_handshake_bits & ACM_CTRL_DTR)
+                return 1;
+        else
+                return 0;
+}
+
+unsigned int acm_send_carrier_detect(struct gserial *port, unsigned int yes)
+{
+#ifndef CONFIG_USB_DUN_SUPPORT
+	struct f_acm		*acm = port_to_acm(port);
+	u16			state;
+
+	state = acm->serial_state;
+	state &= ~ACM_CTRL_DCD;
+	if (yes)
+		state |= ACM_CTRL_DCD;
+
+	acm->serial_state = state;
+	return acm_notify_serial_state(acm);
+#else
+	printk("acm_send_carrier_detect\n");
+	return 0;
+#endif
+}
+
+unsigned int acm_send_ring_indicator(struct gserial *port, unsigned int yes)
+{
+#ifndef CONFIG_USB_DUN_SUPPORT
+	struct f_acm		*acm = port_to_acm(port);
+	u16			state;
+
+	state = acm->serial_state;
+	state &= ~ACM_CTRL_RI;
+	if (yes)
+		state |= ACM_CTRL_RI;
+
+	acm->serial_state = state;
+	return acm_notify_serial_state(acm);
+#else
+	printk("acm_send_ring_indicator\n");
+	return 0;
+#endif
+}
 static void acm_disconnect(struct gserial *port)
 {
 	struct f_acm		*acm = port_to_acm(port);
@@ -809,6 +884,12 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 			gadget_is_dualspeed(c->cdev->gadget) ? "dual" : "full",
 			acm->port.in->name, acm->port.out->name,
 			acm->notify->name);
+
+	/* To notify serial state by datarouter*/
+        #ifdef CONFIG_USB_DUN_SUPPORT
+	acmdata_register(acm);
+        #endif
+
 	return 0;
 
 fail:
@@ -846,6 +927,10 @@ acm_unbind(struct usb_configuration *c, struct usb_function *f)
 	gs_free_req(acm->notify, acm->notify_req);
 	kfree(acm->port.func.name);
 	kfree(acm);
+
+        #ifdef CONFIG_USB_DUN_SUPPORT
+	acmdata_unregister();
+        #endif
 }
 
 /* Some controllers can't support CDC ACM ... */
@@ -914,6 +999,10 @@ int acm_bind_config(struct usb_configuration *c, u8 port_num)
 	acm->transport = gacm_ports[port_num].transport;
 
 	acm->port.connect = acm_connect;
+        //Add for DUN
+        acm->port.get_dtr = acm_get_dtr;
+	acm->port.send_carrier_detect = acm_send_carrier_detect;
+	acm->port.send_ring_indicator = acm_send_ring_indicator;
 	acm->port.disconnect = acm_disconnect;
 	acm->port.send_break = acm_send_break;
 	acm->port.send_modem_ctrl_bits = acm_send_modem_ctrl_bits;
@@ -977,3 +1066,4 @@ static int acm_init_port(int port_num, const char *name)
 
 	return 0;
 }
+

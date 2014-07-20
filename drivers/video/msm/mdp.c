@@ -2,7 +2,7 @@
  *
  * MSM MDP Interface (used by framebuffer core)
  *
- * Copyright (c) 2007-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2007-2013, Code Aurora Forum. All rights reserved.
  * Copyright (C) 2007 Google Incorporated
  *
  * This software is licensed under the terms of the GNU General Public
@@ -862,7 +862,7 @@ static int mdp_histogram_disable(struct mdp_hist_mgmt *mgmt)
 	outp32(MDP_INTR_CLEAR, mgmt->intr);
 	mdp_intr_mask &= ~mgmt->intr;
 	outp32(MDP_INTR_ENABLE, mdp_intr_mask);
-	mdp_disable_irq(mgmt->irq_term);
+	mdp_disable_irq_nosync(mgmt->irq_term);
 	spin_unlock_irqrestore(&mdp_spin_lock, flag);
 
 	if (mdp_rev >= MDP_REV_42)
@@ -888,12 +888,10 @@ int _mdp_histogram_ctrl(boolean en, struct mdp_hist_mgmt *mgmt)
 	int ret = 0;
 
 	mutex_lock(&mgmt->mdp_hist_mutex);
-	if (mgmt->mdp_is_hist_start == TRUE) {
-		if (en)
-			ret = mdp_histogram_enable(mgmt);
-		else
-			ret = mdp_histogram_disable(mgmt);
-	}
+	if (mgmt->mdp_is_hist_start && !mgmt->mdp_is_hist_data && en)
+		ret = mdp_histogram_enable(mgmt);
+	else if (mgmt->mdp_is_hist_data && !en)
+		ret = mdp_histogram_disable(mgmt);
 	mutex_unlock(&mgmt->mdp_hist_mutex);
 
 	if (en == false)
@@ -991,7 +989,6 @@ int mdp_histogram_stop(struct fb_info *info, uint32_t block)
 	mgmt->mdp_is_hist_start = FALSE;
 
 	if (!mfd->panel_power_on) {
-		mgmt->mdp_is_hist_data = FALSE;
 		if (mgmt->hist != NULL) {
 			mgmt->hist = NULL;
 			complete(&mgmt->mdp_hist_comp);
@@ -1316,7 +1313,11 @@ static ssize_t vsync_show_event(struct device *dev,
 
 	INIT_COMPLETION(vsync_cntrl.vsync_wait);
 
-	wait_for_completion(&vsync_cntrl.vsync_wait);
+	//wait_for_completion(&vsync_cntrl.vsync_wait);
+	//QCOM DEBUG
+	if (wait_for_completion_timeout(&vsync_cntrl.vsync_wait, HZ/10) <= 0)
+		pr_err("%s: Time Out\n", __func__);
+	
 	ret = snprintf(buf, PAGE_SIZE, "VSYNC=%llu",
 	ktime_to_ns(vsync_cntrl.vsync_time));
 	buf[strlen(buf) + 1] = '\0';
@@ -1430,7 +1431,10 @@ void mdp_pipe_kickoff(uint32 term, struct msm_fb_data_type *mfd)
 		mdp_ppp_waiting = TRUE;
 		spin_unlock_irqrestore(&mdp_spin_lock, flag);
 		outpdw(MDP_BASE + 0x30, 0x1000);
-		wait_for_completion_killable(&mdp_ppp_comp);
+		//wait_for_completion_killable(&mdp_ppp_comp);
+		//QCOM DEBUG
+		if (wait_for_completion_timeout(&mdp_ppp_comp, HZ/10) <= 0)
+			pr_err("%s: Time Out\n", __func__);
 		mdp_disable_irq(term);
 
 		if (mdp_debug[MDP_PPP_BLOCK]) {
@@ -1858,13 +1862,14 @@ irqreturn_t mdp_isr(int irq, void *ptr)
 			dma = &dma2_data;
 			spin_lock_irqsave(&mdp_spin_lock, flag);
 			vsync_isr = vsync_cntrl.vsync_irq_enabled;
+			disabled_clocks = vsync_cntrl.disabled_clocks;
 			/* let's disable LCDC interrupt */
 			if (dma->waiting) {
 				dma->waiting = FALSE;
 				complete(&dma->comp);
 			}
 
-			if (!vsync_isr) {
+			if (!vsync_isr && !vsync_cntrl.disabled_clocks) {
 				mdp_intr_mask &= ~LCDC_FRAME_START;
 				outp32(MDP_INTR_ENABLE, mdp_intr_mask);
 				mdp_disable_irq_nosync(MDP_VSYNC_TERM);
@@ -1874,7 +1879,7 @@ irqreturn_t mdp_isr(int irq, void *ptr)
 			}
 			spin_unlock_irqrestore(&mdp_spin_lock, flag);
 
-			if (!vsync_isr)
+			if (!vsync_isr && !disabled_clocks)
 				mdp_pipe_ctrl(MDP_CMD_BLOCK,
 					MDP_BLOCK_POWER_OFF, TRUE);
 
@@ -2201,7 +2206,7 @@ static int mdp_on(struct platform_device *pdev)
 	return ret;
 }
 
-static int mdp_resource_initialized;
+int mdp_resource_initialized;
 static struct msm_panel_common_pdata *mdp_pdata;
 
 uint32 mdp_hw_revision;
@@ -2423,7 +2428,7 @@ static int mdp_probe(struct platform_device *pdev)
 		if (!(mdp_pdata->cont_splash_enabled))
 			mdp4_hw_init();
 #else
-		mdp_hw_init();
+		mdp_hw_init(mdp_pdata->cont_splash_enabled);
 #endif
 
 #ifdef CONFIG_FB_MSM_OVERLAY

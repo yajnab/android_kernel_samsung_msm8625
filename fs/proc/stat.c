@@ -71,6 +71,32 @@ static u64 get_iowait_time(int cpu)
 
 #endif
 
+#ifdef CONFIG_APPLY_GA_SOLUTION
+u64 get_idle_time_ram(int cpu)
+{
+	u64 idle, idle_time = get_cpu_idle_time_us(cpu, NULL);
+	if (idle_time == -1ULL)
+		/* !NO_HZ so we can rely on cpustat.idle */
+		idle = kcpustat_cpu(cpu).cpustat[CPUTIME_IDLE];
+	else
+		idle = usecs_to_cputime64(idle_time);
+	return idle;
+}
+//EXPORT_SYMBOL(get_idle_time_ram);
+
+u64 get_iowait_time_ram(int cpu)
+{
+	u64 iowait, iowait_time = get_cpu_iowait_time_us(cpu, NULL);
+	if (iowait_time == -1ULL)
+		/* !NO_HZ so we can rely on cpustat.iowait */
+		iowait = kcpustat_cpu(cpu).cpustat[CPUTIME_IOWAIT];
+	else
+		iowait = usecs_to_cputime64(iowait_time);
+	return iowait;
+}
+//EXPORT_SYMBOL(get_iowait_time_ram);
+#endif
+
 static int show_stat(struct seq_file *p, void *v)
 {
 	int i, j;

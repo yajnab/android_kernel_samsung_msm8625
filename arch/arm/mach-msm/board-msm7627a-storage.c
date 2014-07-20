@@ -22,6 +22,11 @@
 #include "pm.h"
 #include "board-msm7627a.h"
 
+#ifndef ATH_POLLING
+extern int register_wlan_status_notify(void (*callback)(int card_present, void *dev_id), void *dev_id);
+extern unsigned int wlan_status(struct device *dev);
+#endif
+
 #if (defined(CONFIG_MMC_MSM_SDC1_SUPPORT)\
 	|| defined(CONFIG_MMC_MSM_SDC2_SUPPORT)\
 	|| defined(CONFIG_MMC_MSM_SDC3_SUPPORT)\
@@ -43,20 +48,39 @@ struct sdcc_gpio {
  * require higher value since it should handle bad signal quality due
  * to size of T-flash adapters.
  */
+
+#if defined(CONFIG_MACH_ARUBA_DUOS_CTC) || defined(CONFIG_MACH_KYLE_PLUS) || defined(CONFIG_MACH_INFINITE_DUOS_CTC) || \
+	defined(CONFIG_MACH_KYLEPLUS_CTC) || defined(CONFIG_MACH_DELOS_DUOS_CTC) || defined(CONFIG_MACH_HENNESSY_DUOS_CTC)
 static struct msm_gpio sdc1_cfg_data[] = {
-	{GPIO_CFG(51, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_14MA),
+	{GPIO_CFG(51, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA),
 								"sdc1_dat_3"},
-	{GPIO_CFG(52, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_14MA),
+	{GPIO_CFG(52, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA),
 								"sdc1_dat_2"},
-	{GPIO_CFG(53, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_14MA),
+	{GPIO_CFG(53, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA),
 								"sdc1_dat_1"},
-	{GPIO_CFG(54, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_14MA),
+	{GPIO_CFG(54, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA),
 								"sdc1_dat_0"},
-	{GPIO_CFG(55, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_14MA),
+	{GPIO_CFG(55, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA),
+								"sdc1_cmd"},
+	{GPIO_CFG(56, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA),
+								"sdc1_clk"},
+};
+#else
+static struct msm_gpio sdc1_cfg_data[] = {
+	{GPIO_CFG(51, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_14MA),
+								"sdc1_dat_3"},
+	{GPIO_CFG(52, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_14MA),
+								"sdc1_dat_2"},
+	{GPIO_CFG(53, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_14MA),
+								"sdc1_dat_1"},
+	{GPIO_CFG(54, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_14MA),
+								"sdc1_dat_0"},
+	{GPIO_CFG(55, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_14MA),
 								"sdc1_cmd"},
 	{GPIO_CFG(56, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_14MA),
 								"sdc1_clk"},
 };
+#endif
 
 static struct msm_gpio sdc2_cfg_data[] = {
 	{GPIO_CFG(62, 2, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA),
@@ -87,6 +111,32 @@ static struct msm_gpio sdc2_sleep_cfg_data[] = {
 	{GPIO_CFG(67, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA),
 								"sdc2_dat_0"},
 };
+#if defined(CONFIG_MACH_DELOS_OPEN)
+static struct msm_gpio sdc3_cfg_data[] = {
+	{GPIO_CFG(88, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA),
+								"sdc3_clk"},
+	{GPIO_CFG(89, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA),
+								"sdc3_cmd"},
+	{GPIO_CFG(90, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA),
+								"sdc3_dat_3"},
+	{GPIO_CFG(91, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA),
+								"sdc3_dat_2"},
+	{GPIO_CFG(92, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA),
+								"sdc3_dat_1"},
+	{GPIO_CFG(93, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA),
+								"sdc3_dat_0"},
+#ifdef CONFIG_MMC_MSM_SDC3_8_BIT_SUPPORT
+	{GPIO_CFG(19, 3, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA),
+								"sdc3_dat_7"},
+	{GPIO_CFG(20, 3, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA),
+								"sdc3_dat_6"},
+	{GPIO_CFG(21, 3, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA),
+								"sdc3_dat_5"},
+	{GPIO_CFG(108, 3, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA),
+								"sdc3_dat_4"},
+#endif
+};
+#else
 static struct msm_gpio sdc3_cfg_data[] = {
 	{GPIO_CFG(88, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA),
 								"sdc3_clk"},
@@ -111,7 +161,12 @@ static struct msm_gpio sdc3_cfg_data[] = {
 								"sdc3_dat_4"},
 #endif
 };
+#endif
 
+#if !defined(CONFIG_MACH_ARUBA_OPEN) && !defined(CONFIG_MACH_ARUBASLIM_OPEN) \
+	&& !defined(CONFIG_MACH_ARUBA_DUOS_CTC) && !defined(CONFIG_MACH_INFINITE_DUOS_CTC) \
+	&& !defined(CONFIG_MACH_BAFFIN_DUOS_CTC) && !defined(CONFIG_MACH_DELOS_DUOS_CTC) \
+	&& !defined(CONFIG_MACH_KYLEPLUS_CTC) && !defined(CONFIG_MACH_DELOS_OPEN) && !defined(CONFIG_MACH_HENNESSY_DUOS_CTC)
 static struct msm_gpio sdc4_cfg_data[] = {
 	{GPIO_CFG(19, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_10MA),
 								"sdc4_dat_3"},
@@ -126,6 +181,7 @@ static struct msm_gpio sdc4_cfg_data[] = {
 	{GPIO_CFG(109, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA),
 								"sdc4_clk"},
 };
+#endif
 
 static struct sdcc_gpio sdcc_cfg_data[] = {
 	{
@@ -141,10 +197,20 @@ static struct sdcc_gpio sdcc_cfg_data[] = {
 		.cfg_data = sdc3_cfg_data,
 		.size = ARRAY_SIZE(sdc3_cfg_data),
 	},
+#if defined(CONFIG_MACH_ARUBA_OPEN) || defined(CONFIG_MACH_ARUBASLIM_OPEN) \
+	|| defined(CONFIG_MACH_ARUBA_DUOS_CTC) || defined(CONFIG_MACH_INFINITE_DUOS_CTC) \
+	|| defined(CONFIG_MACH_BAFFIN_DUOS_CTC) || defined(CONFIG_MACH_DELOS_DUOS_CTC) \
+	|| defined(CONFIG_MACH_KYLEPLUS_CTC) || defined(CONFIG_MACH_DELOS_OPEN) || defined(CONFIG_MACH_HENNESSY_DUOS_CTC)
+	{
+		.cfg_data = NULL, //sdc4_cfg_data,
+		.size = 0, //ARRAY_SIZE(sdc4_cfg_data),
+	},
+#else
 	{
 		.cfg_data = sdc4_cfg_data,
 		.size = ARRAY_SIZE(sdc4_cfg_data),
 	},
+#endif
 };
 
 static int gpio_sdc1_hw_det = 85;
@@ -155,6 +221,9 @@ static void gpio_sdc1_config(void)
 					|| machine_is_msm7627a_qrd3()
 					|| machine_is_msm8625_qrd7())
 		gpio_sdc1_hw_det = 42;
+
+	gpio_sdc1_hw_det = 94;
+
 }
 
 static struct regulator *sdcc_vreg_data[MAX_SDCC_CONTROLLER];
@@ -210,6 +279,10 @@ static int msm_sdcc_setup_vreg(int dev_id, unsigned int enable)
 		clear_bit(dev_id, &vreg_sts);
 
 		rc = regulator_disable(curr);
+/* using msleep()  can cause suspend schedule timeout and kernel panic sometimes in KELY_PLUS */ 
+/* By jjuny79.kim , it should be changed 25ms delay when using mdelay because of H/W margine.*/
+		mdelay(25);
+
 		if (rc)
 			pr_err("%s: could not disable regulator: %d\n",
 						__func__, rc);
@@ -219,7 +292,7 @@ static int msm_sdcc_setup_vreg(int dev_id, unsigned int enable)
 
 static uint32_t msm_sdcc_setup_power(struct device *dv, unsigned int vdd)
 {
-	int rc = 0;
+	int rc;
 	struct platform_device *pdev;
 
 	pdev = container_of(dv, struct platform_device, dev);
@@ -238,9 +311,21 @@ static unsigned int msm7627a_sdcc_slot_status(struct device *dev)
 {
 	int status;
 
+/* the GPIO 94 have func 0 or 1 in the KYLEPLUS, config func 0 to the generic gpio input */
+#if defined(CONFIG_MACH_KYLEPLUS_CTC)
+	status = gpio_tlmm_config(GPIO_CFG(gpio_sdc1_hw_det, 0, GPIO_CFG_INPUT,
+				GPIO_CFG_PULL_UP, GPIO_CFG_8MA),
+				GPIO_CFG_ENABLE);
+#elif defined(CONFIG_MACH_DELOS_OPEN) || defined(CONFIG_MACH_DELOS_CTC)
+	status = gpio_tlmm_config(GPIO_CFG(gpio_sdc1_hw_det, 2, GPIO_CFG_INPUT,
+			GPIO_CFG_NO_PULL, GPIO_CFG_8MA),
+			GPIO_CFG_ENABLE);
+
+#else
 	status = gpio_tlmm_config(GPIO_CFG(gpio_sdc1_hw_det, 2, GPIO_CFG_INPUT,
 				GPIO_CFG_PULL_UP, GPIO_CFG_8MA),
 				GPIO_CFG_ENABLE);
+#endif
 	if (status)
 		pr_err("%s:Failed to configure tlmm for GPIO %d\n", __func__,
 				gpio_sdc1_hw_det);
@@ -263,6 +348,8 @@ static unsigned int msm7627a_sdcc_slot_status(struct device *dev)
 		}
 		gpio_free(gpio_sdc1_hw_det);
 	}
+	
+	status = status?0:1 ;
 	return status;
 }
 
@@ -288,7 +375,13 @@ static struct mmc_platform_data sdc2_plat_data = {
 	.ocr_mask       = MMC_VDD_28_29 | MMC_VDD_165_195,
 	.translate_vdd  = msm_sdcc_setup_power,
 	.mmc_bus_width  = MMC_CAP_4_BIT_DATA,
+#if 0  /* def CONFIG_MMC_MSM_SDIO_SUPPORT */
 	.sdiowakeup_irq = MSM_GPIO_TO_INT(66),
+#endif
+#ifndef ATH_POLLING
+	.status = wlan_status,
+	.register_status_notify = register_wlan_status_notify,
+#endif /* ATH_POLLING */
 	.msmsdcc_fmin   = 144000,
 	.msmsdcc_fmid   = 24576000,
 	.msmsdcc_fmax   = 49152000,
@@ -364,13 +457,19 @@ void __init msm7627a_init_mmc(void)
 {
 	/* eMMC slot */
 #ifdef CONFIG_MMC_MSM_SDC3_SUPPORT
-
-	/* There is no eMMC on SDC3 for QRD3 based devices */
-	if (!(machine_is_msm7627a_qrd3() || machine_is_msm8625_qrd7())) {
-		if (mmc_regulator_init(3, "emmc", 3000000))
+// GSCHO
+//	if (mmc_regulator_init(3, "emmc", 3000000))
+	if (mmc_regulator_init(3, "smps3", 1800000))
 			return;
+		/*
+		 * On 7x25A FFA data CRC errors are seen, which are
+		 * probably due to the proximity of SIM card and eMMC.
+		 * Hence, reducing the clock to 24.7Mhz from 49Mhz.
+		 */
+		if (machine_is_msm7625a_ffa())
+			sdc3_plat_data.msmsdcc_fmax =
+				sdc3_plat_data.msmsdcc_fmid;
 		msm_add_sdcc(3, &sdc3_plat_data);
-	}
 #endif
 	/* Micro-SD slot */
 #ifdef CONFIG_MMC_MSM_SDC1_SUPPORT
@@ -378,10 +477,17 @@ void __init msm7627a_init_mmc(void)
 	if (mmc_regulator_init(1, "mmc", 2850000))
 		return;
 	/* 8x25 EVT do not use hw detector */
-	if (!(machine_is_msm8625_evt()))
+#if defined(CONFIG_MACH_DELOS_OPEN)  || defined(CONFIG_MACH_DELOS_DUOS_CTC) || defined(CONFIG_MACH_HENNESSY_DUOS_CTC)
+	sdc1_plat_data.status_irq = MSM_GPIO_TO_INT(gpio_sdc1_hw_det);
+#else 
+	if (!((machine_is_msm8625_evt() || machine_is_qrd_skud_prime() ||
+				machine_is_msm8625q_evbd() || machine_is_msm8625q_skud())))
 		sdc1_plat_data.status_irq = MSM_GPIO_TO_INT(gpio_sdc1_hw_det);
-	if (machine_is_msm8625_evt())
+		
+	if (machine_is_msm8625_evt() || machine_is_qrd_skud_prime() ||
+				machine_is_msm8625q_evbd() || machine_is_msm8625q_skud())
 		sdc1_plat_data.status = NULL;
+#endif
 
 	msm_add_sdcc(1, &sdc1_plat_data);
 #endif

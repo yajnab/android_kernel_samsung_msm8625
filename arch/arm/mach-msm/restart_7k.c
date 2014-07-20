@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -17,16 +17,35 @@
 #include <linux/init.h>
 #include <linux/reboot.h>
 #include <linux/pm.h>
+////case01117953 patch
+//#include <linux/regulator/onsemi-ncp6335d.h>
 #include <asm/system_misc.h>
 #include <mach/proc_comm.h>
+#include <linux/sec_param.h>
 
 #include "devices-msm7x2xa.h"
 #include "smd_rpcrouter.h"
+#include "smem_vendor_type.h"
 
 static uint32_t restart_reason = 0x776655AA;
 
 static void msm_pm_power_off(void)
 {
+	unsigned size = 0;
+	samsung_vendor1_id *smem_vendor1 = \
+		(samsung_vendor1_id *)smem_get_entry(SMEM_ID_VENDOR1, &size);
+
+	if (smem_vendor1) {
+		smem_vendor1->AP_reserved[0] = 0;
+	} else {
+		printk(KERN_EMERG "smem_flag is NULL\n");
+	}	
+	
+	printk("[msm_pm_power_off] START!!! \n");
+
+	/* Disable interrupts */
+
+	local_irq_disable();
 	msm_proc_comm(PCOM_POWER_DOWN, 0, 0);
 	for (;;)
 		;
@@ -34,7 +53,27 @@ static void msm_pm_power_off(void)
 
 static void msm_pm_restart(char str, const char *cmd)
 {
-	pr_debug("The reset reason is %x\n", restart_reason);
+	int rc;
+	unsigned size;
+	samsung_vendor1_id *smem_vendor1 = \
+		(samsung_vendor1_id *)smem_get_entry(SMEM_ID_VENDOR1, &size);
+
+	if (smem_vendor1) {
+		smem_vendor1->silent_reset = 0xAEAEAEAE;
+		smem_vendor1->reboot_reason = restart_reason;
+        smem_vendor1->AP_reserved[0] = 0;
+	} else {
+		printk(KERN_EMERG "smem_flag is NULL\n");
+	}
+
+	printk(KERN_EMERG, "The reset reason is %x\n", restart_reason);
+
+//case01117953 patch
+/*
+	rc = ncp6335d_restart_config();
+	if (rc)
+		pr_err("Unable to configure NCP6335D for restart\n");
+*/
 
 	/* Disable interrupts */
 	local_irq_disable();
@@ -55,17 +94,44 @@ static void msm_pm_restart(char str, const char *cmd)
 		;
 }
 
+struct smem_apps_boot_mode {
+	unsigned int restart_reason;
+	unsigned int dummy;
+};
+
+//samsung_vendor1_id *p_smem_vendor1; we should modify this pattern
 static int msm_reboot_call
 	(struct notifier_block *this, unsigned long code, void *_cmd)
 {
+//	unsigned int debug_level;
+      struct smem_apps_boot_mode * boot_mode;
+
+	boot_mode = smem_alloc(SMEM_APPS_BOOT_MODE, sizeof(*boot_mode));
+	if(boot_mode == NULL) {
+	    printk(KERN_ERR "Can't alloc smem for restart_reason!!\n");
+	    return NOTIFY_DONE;
+	}
+
 	if ((code == SYS_RESTART) && _cmd) {
 		char *cmd = _cmd;
 		if (!strncmp(cmd, "bootloader", 10)) {
 			restart_reason = 0x77665500;
-		} else if (!strncmp(cmd, "recovery", 8)) {
+		} else if (!strncmp(cmd, "recovery_done",13)) {
+#if 0 //defined(CONFIG_SEC_MISC)
+			sec_get_param(param_index_debuglevel, &debug_level);
+			debug_level = 0;
+			sec_set_param(param_index_debuglevel, &debug_level);
+#endif
+			restart_reason = 0x77665503;			
+		}
+		else if (!strncmp(cmd, "recovery", 8)) {
 			restart_reason = 0x77665502;
 		} else if (!strncmp(cmd, "eraseflash", 10)) {
 			restart_reason = 0x776655EF;
+		} else if (!strcmp(cmd, "download")) {
+			restart_reason = 0x776655FF;
+		} else if (!strncmp(cmd, "sud", 3)) {
+			restart_reason = 0x776655FF;
 		} else if (!strncmp(cmd, "oem-", 4)) {
 			unsigned long code;
 			int res;
@@ -76,6 +142,8 @@ static int msm_reboot_call
 			restart_reason = 0x77665501;
 		}
 	}
+	boot_mode->restart_reason = restart_reason;
+	printk("[msm_reboot_call] restart_reason : 0x%x\n", restart_reason);
 	return NOTIFY_DONE;
 }
 

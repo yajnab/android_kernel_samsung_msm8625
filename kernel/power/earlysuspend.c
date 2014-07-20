@@ -27,7 +27,20 @@ enum {
 	DEBUG_SUSPEND = 1U << 2,
 	DEBUG_VERBOSE = 1U << 3,
 };
-static int debug_mask = DEBUG_USER_STATE;
+static int debug_mask = DEBUG_USER_STATE | DEBUG_VERBOSE;
+#if defined(CONFIG_MACH_KYLEPLUS_CTC)
+#define EARLY_SUSPEND_LIST_DEBUG
+#endif
+
+#ifdef EARLY_SUSPEND_LIST_DEBUG
+#define EALAY_SUS_MAX_FUN_NAME 40
+#define EARLY_SUS_LIST 460
+static char early_suspend_list_debug[EARLY_SUS_LIST + EALAY_SUS_MAX_FUN_NAME];
+static char late_resume_list_debug[EARLY_SUS_LIST + EALAY_SUS_MAX_FUN_NAME];
+static char * early_suspend_list_p	= &early_suspend_list_debug;
+static char * late_resume_list_p 	= &late_resume_list_debug;
+#endif
+
 module_param_named(debug_mask, debug_mask, int, S_IRUGO | S_IWUSR | S_IWGRP);
 
 static DEFINE_MUTEX(early_suspend_lock);
@@ -75,6 +88,10 @@ static void early_suspend(struct work_struct *work)
 	struct early_suspend *pos;
 	unsigned long irqflags;
 	int abort = 0;
+#ifdef EARLY_SUSPEND_LIST_DEBUG
+	uint offset_sum = 0;
+	uint offset =0;
+#endif
 
 	mutex_lock(&early_suspend_lock);
 	spin_lock_irqsave(&state_lock, irqflags);
@@ -93,11 +110,28 @@ static void early_suspend(struct work_struct *work)
 
 	if (debug_mask & DEBUG_SUSPEND)
 		pr_info("early_suspend: call handlers\n");
+
+#ifdef EARLY_SUSPEND_LIST_DEBUG
+	memset(early_suspend_list_debug, 0, EARLY_SUS_LIST + EALAY_SUS_MAX_FUN_NAME);
+#endif
+	
 	list_for_each_entry(pos, &early_suspend_handlers, link) {
 		if (pos->suspend != NULL) {
 			if (debug_mask & DEBUG_VERBOSE)
 				pr_info("early_suspend: calling %pf\n", pos->suspend);
+#ifdef EARLY_SUSPEND_LIST_DEBUG
+			if (offset_sum < EARLY_SUS_LIST) {
+				offset = snprintf(early_suspend_list_p + offset_sum, EALAY_SUS_MAX_FUN_NAME, "+%pf", pos->suspend);
+				offset_sum += (offset > 0)? min(offset, EALAY_SUS_MAX_FUN_NAME-1) : 0;
+			}
+#endif			
 			pos->suspend(pos);
+#ifdef EARLY_SUSPEND_LIST_DEBUG
+			if (offset_sum < EARLY_SUS_LIST) {
+				offset = snprintf(early_suspend_list_p + offset_sum, EALAY_SUS_MAX_FUN_NAME, "-; ");
+				offset_sum += (offset > 0) ? offset : 0;
+			}
+#endif
 		}
 	}
 	mutex_unlock(&early_suspend_lock);
@@ -115,6 +149,10 @@ static void late_resume(struct work_struct *work)
 	struct early_suspend *pos;
 	unsigned long irqflags;
 	int abort = 0;
+#ifdef EARLY_SUSPEND_LIST_DEBUG
+	uint offset_sum = 0;
+	uint offset =0;
+#endif
 
 	mutex_lock(&early_suspend_lock);
 	spin_lock_irqsave(&state_lock, irqflags);
@@ -131,12 +169,28 @@ static void late_resume(struct work_struct *work)
 	}
 	if (debug_mask & DEBUG_SUSPEND)
 		pr_info("late_resume: call handlers\n");
+
+#ifdef EARLY_SUSPEND_LIST_DEBUG
+	memset(late_resume_list_debug, 0, EARLY_SUS_LIST + EALAY_SUS_MAX_FUN_NAME);
+#endif
+
 	list_for_each_entry_reverse(pos, &early_suspend_handlers, link) {
 		if (pos->resume != NULL) {
 			if (debug_mask & DEBUG_VERBOSE)
 				pr_info("late_resume: calling %pf\n", pos->resume);
-
+#ifdef EARLY_SUSPEND_LIST_DEBUG
+			if (offset_sum < EARLY_SUS_LIST) {
+				offset = snprintf(late_resume_list_p + offset_sum, EALAY_SUS_MAX_FUN_NAME, "+%pf", pos->resume);
+				offset_sum += (offset > 0)? min(offset, EALAY_SUS_MAX_FUN_NAME-1) : 0;
+			}
+#endif
 			pos->resume(pos);
+#ifdef EARLY_SUSPEND_LIST_DEBUG
+			if (offset_sum < EARLY_SUS_LIST) {
+				offset = snprintf(late_resume_list_p + offset_sum, EALAY_SUS_MAX_FUN_NAME, "-; ");
+				offset_sum += (offset > 0) ? offset : 0;
+			}
+#endif
 		}
 	}
 	if (debug_mask & DEBUG_SUSPEND)
@@ -165,6 +219,12 @@ void request_suspend_state(suspend_state_t new_state)
 			tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 			tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
 	}
+#ifdef EARLY_SUSPEND_LIST_DEBUG
+	if (new_state != PM_SUSPEND_ON)
+		pr_info("the_last_resume_list: %s\n", late_resume_list_p);
+	else
+		pr_info("the_last_suspend_list: %s\n", early_suspend_list_p);
+#endif
 	if (!old_sleep && new_state != PM_SUSPEND_ON) {
 		state |= SUSPEND_REQUESTED;
 		queue_work(suspend_work_queue, &early_suspend_work);

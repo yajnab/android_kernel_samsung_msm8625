@@ -138,6 +138,9 @@ struct msm_hsusb_gadget_platform_data {
 
 	int self_powered;
 	int is_phy_status_timer_on;
+#if defined(CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE)
+	int (*get_usb_chg_type)(void);
+#endif
 	bool prop_chg;
 };
 

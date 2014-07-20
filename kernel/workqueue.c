@@ -41,6 +41,9 @@
 #include <linux/debug_locks.h>
 #include <linux/lockdep.h>
 #include <linux/idr.h>
+#ifdef CONFIG_SEC_DEBUG
+#include <linux/sec_debug.h>
+#endif
 
 #include "workqueue_sched.h"
 
@@ -1863,6 +1866,11 @@ __acquires(&gcwq->lock)
 	lock_map_acquire_read(&cwq->wq->lockdep_map);
 	lock_map_acquire(&lockdep_map);
 	trace_workqueue_execute_start(work);
+/*
+#if defined(CONFIG_SEC_DEBUG) && defined (CONFIG_SEC_DEBUG_SCHED_LOG)
+	secdbg_sched_msg("@%pS", f);
+#endif
+*/
 	f(work);
 	/*
 	 * While we must be careful to not use "work" after this, the trace

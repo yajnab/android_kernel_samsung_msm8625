@@ -21,7 +21,9 @@
    COPYRIGHTS, TRADEMARKS OR OTHER RIGHTS, RELATING TO USE OF THIS
    SOFTWARE IS DISCLAIMED.
 */
-
+#ifdef CONFIG_BT_MGMT
+#include "hci_core_mgmt.h"
+#else
 #ifndef __HCI_CORE_H
 #define __HCI_CORE_H
 
@@ -354,6 +356,7 @@ struct hci_conn {
 	__u8		auth;
 	void		*smp_conn;
 	struct timer_list smp_timer;
+	__u8		conn_valid;
 
 
 	void (*connect_cfm_cb)	(struct hci_conn *conn, u8 status);
@@ -1109,3 +1112,5 @@ void hci_le_ltk_neg_reply(struct hci_conn *conn);
 void hci_read_rssi(struct hci_conn *conn);
 
 #endif /* __HCI_CORE_H */
+
+#endif /* BT_MGMT */

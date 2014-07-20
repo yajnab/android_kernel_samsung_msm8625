@@ -300,6 +300,72 @@ err:
 	return ret;
 }
 
+#ifdef CONFIG_RTC_AUTO_PWRON
+/* 0|1234|56|78|90|12 */
+/* 1|2010|01|01|00|00 */
+/* en yyyy mm dd hh mm */
+#define BOOTALM_BIT_EN       0
+#define BOOTALM_BIT_YEAR     1
+#define BOOTALM_BIT_MONTH    5
+#define BOOTALM_BIT_DAY      7
+#define BOOTALM_BIT_HOUR     9
+#define BOOTALM_BIT_MIN     11
+#define BOOTALM_BIT_TOTAL   13
+
+int alarm_set_alarm(char *alarm_data)
+{
+	struct rtc_wkalrm alm;
+	int ret;
+	char buf_ptr[BOOTALM_BIT_TOTAL+1];
+
+	if (!alarm_rtc_dev) {
+		pr_alarm(ERROR,
+			"alarm_set_alarm: no RTC, time will be lost on reboot\n");
+		return -1;
+	}
+
+	strlcpy(buf_ptr, alarm_data, BOOTALM_BIT_TOTAL+1);
+
+	alm.time.tm_sec = 0;
+	alm.time.tm_min = (buf_ptr[BOOTALM_BIT_MIN] - '0') * 10
+			+ (buf_ptr[BOOTALM_BIT_MIN+1] - '0');
+	alm.time.tm_hour = (buf_ptr[BOOTALM_BIT_HOUR] - '0') * 10
+			+ (buf_ptr[BOOTALM_BIT_HOUR+1] - '0');
+	alm.time.tm_mday = (buf_ptr[BOOTALM_BIT_DAY] - '0') * 10
+			+ (buf_ptr[BOOTALM_BIT_DAY+1] - '0');
+	alm.time.tm_mon = (buf_ptr[BOOTALM_BIT_MONTH] - '0') * 10
+			+ (buf_ptr[BOOTALM_BIT_MONTH+1] - '0');
+	alm.time.tm_year = (buf_ptr[BOOTALM_BIT_YEAR] - '0') * 1000
+			+ (buf_ptr[BOOTALM_BIT_YEAR+1] - '0') * 100
+			+ (buf_ptr[BOOTALM_BIT_YEAR+2] - '0') * 10
+			+ (buf_ptr[BOOTALM_BIT_YEAR+3] - '0');
+
+	alm.enabled = (*buf_ptr == '1');
+
+	pr_info("%s : %s => tm(%d %04d.%02d.%02d %02d:%02d:%02d)\n",
+			__func__, buf_ptr, alm.enabled,
+			alm.time.tm_year, alm.time.tm_mon, alm.time.tm_mday,
+			alm.time.tm_hour, alm.time.tm_min, alm.time.tm_sec);
+	/* case 1. if alarm has not been set
+			yet since download, alarm is set to 2030,
+			because sometimes RTC occurs,
+			so it does auto power up. */
+	if (alm.time.tm_year == 0) {
+		alm.enabled = 1;
+		alm.time.tm_year = 2030;
+	}
+	/* end of case 1. */
+	alm.time.tm_mon -= 1;
+	alm.time.tm_year -= 2000;
+	ret = rtc_set_bootalarm(alarm_rtc_dev, &alm);
+	if (ret < 0) {
+		pr_alarm(ERROR, "alarm_set_alarm: "
+			"Failed to set ALARM, time will be lost on reboot\n");
+		return -2;
+	}
+	return 0;
+}
+#endif /* CONFIG_RTC_AUTO_PWRON */
 
 void
 alarm_update_timedelta(struct timespec tmp_time, struct timespec new_time)

@@ -2,7 +2,7 @@ config ARM
 	bool
 	default y
 	select HAVE_AOUT
-	select HAVE_DMA_API_DEBUG
+	#select HAVE_DMA_API_DEBUG
 	select HAVE_IDE if PCI || ISA || PCMCIA
 	select HAVE_DMA_CONTIGUOUS if (CPU_V6 || CPU_V6K || CPU_V7)
 	select HAVE_MEMBLOCK
@@ -1776,7 +1776,7 @@ config AEABI
 config OABI_COMPAT
 	bool "Allow old ABI binaries to run with this kernel (EXPERIMENTAL)"
 	depends on AEABI && EXPERIMENTAL && !THUMB2_KERNEL
-	default y
+	default y if !SMP
 	help
 	  This option preserves the old syscall interface along with the
 	  new (ARM EABI) one. It also provides a compatibility layer to

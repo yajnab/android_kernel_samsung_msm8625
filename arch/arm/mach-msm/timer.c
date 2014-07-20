@@ -32,6 +32,9 @@
 #include <mach/msm_iomap.h>
 #include <mach/irqs.h>
 #include <mach/socinfo.h>
+#ifdef CONFIG_SEC_DEBUG
+#include <linux/sec_debug.h>
+#endif
 
 #if defined(CONFIG_MSM_SMD)
 #include "smd_private.h"
@@ -202,6 +205,9 @@ static irqreturn_t msm_timer_interrupt(int irq, void *dev_id)
 	if (evt->event_handler == NULL)
 		return IRQ_HANDLED;
 	evt->event_handler(evt);
+#ifdef CONFIG_SEC_DEBUG_SCHED_LOG
+	sec_debug_timer_log(2222, (int)irqs_disabled(),	(void *)evt->event_handler);
+#endif /* CONFIG_SEC_DEBUG_SCHED_LOG */
 	return IRQ_HANDLED;
 }
 
@@ -1020,7 +1026,8 @@ static void __init msm_timer_init(void)
 
 	if (cpu_is_msm7x01() || cpu_is_msm7x25() || cpu_is_msm7x27() ||
 	    cpu_is_msm7x25a() || cpu_is_msm7x27a() || cpu_is_msm7x25aa() ||
-	    cpu_is_msm7x27aa() || cpu_is_msm8625() || cpu_is_msm7x25ab()) {
+	    cpu_is_msm7x27aa() || cpu_is_msm8625() || cpu_is_msm7x25ab() ||
+	    cpu_is_msm8625q()) {
 		dgt->shift = MSM_DGT_SHIFT;
 		dgt->freq = 19200000 >> MSM_DGT_SHIFT;
 		dgt->clockevent.shift = 32 + MSM_DGT_SHIFT;
@@ -1030,7 +1037,7 @@ static void __init msm_timer_init(void)
 		gpt->flags |= MSM_CLOCK_FLAGS_UNSTABLE_COUNT
 			   |  MSM_CLOCK_FLAGS_ODD_MATCH_WRITE
 			   |  MSM_CLOCK_FLAGS_DELAYED_WRITE_POST;
-		if (cpu_is_msm8625()) {
+		if (cpu_is_msm8625() || cpu_is_msm8625q()) {
 			dgt->irq = MSM8625_INT_DEBUG_TIMER_EXP;
 			gpt->irq = MSM8625_INT_GP_TIMER_EXP;
 			global_timer_offset =  MSM_TMR0_BASE - MSM_TMR_BASE;
@@ -1124,7 +1131,8 @@ static void __init msm_timer_init(void)
 		ce->irq = clock->irq;
 		if (cpu_is_msm8x60() || cpu_is_msm8960() || cpu_is_apq8064() ||
 		    cpu_is_msm8930() || cpu_is_msm8930aa() ||
-		    cpu_is_msm9615() || cpu_is_msm8625() || cpu_is_msm8627()) {
+		    cpu_is_msm9615() || cpu_is_msm8625() || cpu_is_msm8627() ||
+			cpu_is_msm8625q()) {
 			clock->percpu_evt = alloc_percpu(struct clock_event_device *);
 			if (!clock->percpu_evt) {
 				pr_err("msm_timer_init: memory allocation "

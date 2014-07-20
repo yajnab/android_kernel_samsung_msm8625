@@ -142,3 +142,10 @@ obj-$(CONFIG_PM_DEVFREQ)	+= devfreq/
 obj-$(CONFIG_MOBICORE_SUPPORT)  += gud/
 
 obj-$(CONFIG_MSM_QDSS)		+= coresight/
+obj-$(CONFIG_DPRAM)	+= dpram/
+#Sensors
+obj-y				+= sensors/
+
+ifeq (1, $(shell if [ -d ../../../../../../kernel/drivers/exfat ] ; then echo 1 ; fi))
+obj-y                           += exfat/
+endif

@@ -1137,6 +1137,7 @@ static int __init pmic_debugfs_init(void)
 			== NULL) {
 		printk(KERN_ERR "%s(%d): debugfs_create_file: index fail\n",
 			__FILE__, __LINE__);
+		debugfs_remove_recursive(dent);
 		return -1;
 	}
 
@@ -1144,6 +1145,7 @@ static int __init pmic_debugfs_init(void)
 			== NULL) {
 		printk(KERN_ERR "%s(%d): debugfs_create_file: debug fail\n",
 			__FILE__, __LINE__);
+		debugfs_remove_recursive(dent);
 		return -1;
 	}
 

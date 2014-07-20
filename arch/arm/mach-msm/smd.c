@@ -2317,6 +2317,13 @@ void *smem_alloc2(unsigned id, unsigned size_in)
 }
 EXPORT_SYMBOL(smem_alloc2);
 
+#if 1 //trebon_dpram_port_temp remove this when CP side is ready
+void *smem_do_alloc(unsigned id, unsigned size_in)
+{
+	return smem_alloc2(id, size_in);
+}
+#endif
+
 void *smem_get_entry(unsigned id, unsigned *size)
 {
 	struct smem_shared *shared = (void *) MSM_SHARED_RAM_BASE;
@@ -2509,6 +2516,7 @@ void smsm_reset_modem_cont(void)
 	spin_unlock_irqrestore(&smem_lock, flags);
 }
 EXPORT_SYMBOL(smsm_reset_modem_cont);
+extern void sec_save_final_context(void);
 
 static void smsm_cb_snapshot(uint32_t use_wakelock)
 {
@@ -2637,6 +2645,12 @@ static irqreturn_t smsm_irq_handler(int irq, void *data)
 				flush_cache_all();
 				outer_flush_all();
 			}
+			#ifdef CONFIG_SEC_DEBUG
+			sec_save_final_context();
+			flush_cache_all();
+			outer_flush_all();
+			#endif
+
 			modem_queue_start_reset_notify();
 
 		} else if (modm & SMSM_INIT) {

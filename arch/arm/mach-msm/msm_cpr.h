@@ -90,17 +90,6 @@
 /* Number of oscilator in each sensor */
 #define NUM_OSC 8
 
-#define CPR_MODE 2
-
-/**
- * enum cpr_mode - Modes in which cpr is used
- */
-enum cpr_mode {
-	NORMAL_MODE = 0,
-	TURBO_MODE,
-	SVS_MODE,
-};
-
 /**
  * enum cpr_action - Cpr actions to be taken
  */
@@ -119,20 +108,6 @@ enum cpr_interrupt {
 	MID_INT		= BIT(3),
 	UP_INT		= BIT(4),
 	MAX_INT		= BIT(5),
-};
-
-/**
- * struct msm_vp_data - structure for VP configuration
- * @min_volt: minimum microvolt level for VP
- * @max_volt: maximum microvolt level for VP
- * @default_volt: default microvolt for VP
- * @step_size: step size of voltage in microvolt
- */
-struct msm_cpr_vp_data {
-	int min_volt;
-	int max_volt;
-	int default_volt;
-	int step_size;
 };
 
 /**
@@ -157,6 +132,7 @@ struct msm_cpr_mode {
 	int ring_osc;
 	int32_t tgt_volt_offset;
 	uint32_t step_quot;
+	uint8_t step_div;
 	uint32_t turbo_Vmax;
 	uint32_t turbo_Vmin;
 	uint32_t nom_Vmax;
@@ -189,10 +165,12 @@ struct msm_cpr_config {
 	uint32_t max_freq;
 	uint32_t max_quot;
 	bool disable_cpr;
-	struct msm_cpr_vp_data *vp_data;
+	uint32_t step_size;
+	uint8_t pvs_fuse;
 	uint32_t (*get_quot)(uint32_t max_quot, uint32_t max_freq,
 				uint32_t new_freq);
 	void (*clk_enable)(void);
+	void (*cpr_reset)(void);
 };
 
 /**
@@ -213,7 +191,7 @@ struct msm_cpr_reg {
 /* msm_cpr_pm_resume: Used by Power Manager for Idle Power Collapse */
 void msm_cpr_pm_resume(void);
 /* msm_cpr_pm_suspend: Used by Power Manager for Idle Power Collapse */
-void msm_cpr_pm_suspend(void);
+int msm_cpr_pm_suspend(void);
 /* msm_cpr_enable: Used by Power Manager for GDFS */
 void msm_cpr_enable(void);
 /* msm_cpr_disable: Used by Power Manager for GDFS */
@@ -222,7 +200,7 @@ void msm_cpr_disable(void);
 /* msm_cpr_pm_resume: Used by Power Manager for Idle Power Collapse */
 void msm_cpr_pm_resume(void) { }
 /* msm_cpr_pm_suspend: Used by Power Manager for Idle Power Collapse */
-void msm_cpr_pm_suspend(void) { }
+int msm_cpr_pm_suspend(void) { return 0; }
 /* msm_cpr_enable: Used by Power Manager for GDFS */
 void msm_cpr_enable(void) { }
 /* msm_cpr_disable: Used by Power Manager for GDFS */

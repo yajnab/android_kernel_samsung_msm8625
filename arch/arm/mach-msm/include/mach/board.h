@@ -251,6 +251,8 @@ enum msm_camera_actuator_name {
 	MSM_ACTUATOR_MAIN_CAM_3,
 	MSM_ACTUATOR_MAIN_CAM_4,
 	MSM_ACTUATOR_MAIN_CAM_5,
+	MSM_ACTUATOR_MAIN_CAM_6,
+	MSM_ACTUATOR_MAIN_CAM_7,
 	MSM_ACTUATOR_WEB_CAM_0,
 	MSM_ACTUATOR_WEB_CAM_1,
 	MSM_ACTUATOR_WEB_CAM_2,
@@ -447,6 +449,7 @@ struct mipi_dsi_platform_data {
 	int (*get_lane_config)(void);
 	char (*splash_is_enabled)(void);
 	int target_type;
+	char dlane_swap;
 };
 
 enum mipi_dsi_3d_ctrl {
@@ -468,7 +471,6 @@ struct mipi_dsi_panel_platform_data {
 	int fpga_3d_config_addr;
 	int *gpio;
 	struct mipi_dsi_phy_ctrl *phy_ctrl_settings;
-	char dlane_swap;
 	void (*dsi_pwm_cfg)(void);
 	char enable_wled_bl_ctrl;
 };
@@ -592,6 +594,13 @@ void vic_handle_irq(struct pt_regs *regs);
 void msm_8974_reserve(void);
 void msm_8974_very_early(void);
 void msm_8974_init_gpiomux(void);
+
+/* Dump debug info (states, rate, etc) of clocks */
+#if defined(CONFIG_ARCH_MSM7X27)
+void msm_clk_dump_debug_info(void);
+#else
+static inline void msm_clk_dump_debug_info(void) {}
+#endif
 
 struct mmc_platform_data;
 int msm_add_sdcc(unsigned int controller,

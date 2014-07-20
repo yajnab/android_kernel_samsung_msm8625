@@ -48,7 +48,7 @@
 #include "carl9170.h"
 #include "cmd.h"
 
-static bool modparam_nohwcrypt;
+static int modparam_nohwcrypt;
 module_param_named(nohwcrypt, modparam_nohwcrypt, bool, S_IRUGO);
 MODULE_PARM_DESC(nohwcrypt, "Disable hardware crypto offload.");
 
@@ -446,7 +446,7 @@ static void carl9170_op_stop(struct ieee80211_hw *hw)
 
 	mutex_lock(&ar->mutex);
 	if (IS_ACCEPTING_CMD(ar)) {
-		RCU_INIT_POINTER(ar->beacon_iter, NULL);
+		rcu_assign_pointer(ar->beacon_iter, NULL);
 
 		carl9170_led_set_state(ar, 0);
 
@@ -678,7 +678,7 @@ unlock:
 		vif_priv->active = false;
 		bitmap_release_region(&ar->vif_bitmap, vif_id, 0);
 		ar->vifs--;
-		RCU_INIT_POINTER(ar->vif_priv[vif_id].vif, NULL);
+		rcu_assign_pointer(ar->vif_priv[vif_id].vif, NULL);
 		list_del_rcu(&vif_priv->list);
 		mutex_unlock(&ar->mutex);
 		synchronize_rcu();
@@ -716,7 +716,7 @@ static void carl9170_op_remove_interface(struct ieee80211_hw *hw,
 	WARN_ON(vif_priv->enable_beacon);
 	vif_priv->enable_beacon = false;
 	list_del_rcu(&vif_priv->list);
-	RCU_INIT_POINTER(ar->vif_priv[id].vif, NULL);
+	rcu_assign_pointer(ar->vif_priv[id].vif, NULL);
 
 	if (vif == main_vif) {
 		rcu_read_unlock();
@@ -853,6 +853,11 @@ static int carl9170_op_config(struct ieee80211_hw *hw, u32 changed)
 			goto out;
 	}
 
+	if (changed & IEEE80211_CONF_CHANGE_POWER) {
+		/* TODO */
+		err = 0;
+	}
+
 	if (changed & IEEE80211_CONF_CHANGE_SMPS) {
 		/* TODO */
 		err = 0;
@@ -886,28 +891,40 @@ static int carl9170_op_config(struct ieee80211_hw *hw, u32 changed)
 			goto out;
 	}
 
-	if (changed & IEEE80211_CONF_CHANGE_POWER) {
-		err = carl9170_set_mac_tpc(ar, ar->hw->conf.channel);
-		if (err)
-			goto out;
-	}
-
 out:
 	mutex_unlock(&ar->mutex);
 	return err;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
 static u64 carl9170_op_prepare_multicast(struct ieee80211_hw *hw,
 					 struct netdev_hw_addr_list *mc_list)
+#else
+static u64 carl9170_op_prepare_multicast(struct ieee80211_hw *hw, int mc_count,
+					 struct dev_addr_list *ha)
+#endif
 {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
 	struct netdev_hw_addr *ha;
+#else
+	int i;
+#endif
 	u64 mchash;
 
 	/* always get broadcast frames */
 	mchash = 1ULL << (0xff >> 2);
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
 	netdev_hw_addr_list_for_each(ha, mc_list)
 		mchash |= 1ULL << (ha->addr[5] >> 2);
+#else
+	for (i = 0; i < mc_count; i++) {
+		if (WARN_ON(!ha))
+			break;
+		mchash |= 1ULL << (ha->dmi_addr[5] >> 2);
+		ha = ha->next;
+	}
+#endif
 
 	return mchash;
 }
@@ -1259,7 +1276,7 @@ static int carl9170_op_sta_add(struct ieee80211_hw *hw,
 		}
 
 		for (i = 0; i < CARL9170_NUM_TID; i++)
-			RCU_INIT_POINTER(sta_info->agg[i], NULL);
+			rcu_assign_pointer(sta_info->agg[i], NULL);
 
 		sta_info->ampdu_max_len = 1 << (3 + sta->ht_cap.ampdu_factor);
 		sta_info->ht_sta = true;
@@ -1286,7 +1303,7 @@ static int carl9170_op_sta_remove(struct ieee80211_hw *hw,
 			struct carl9170_sta_tid *tid_info;
 
 			tid_info = rcu_dereference(sta_info->agg[i]);
-			RCU_INIT_POINTER(sta_info->agg[i], NULL);
+			rcu_assign_pointer(sta_info->agg[i], NULL);
 
 			if (!tid_info)
 				continue;
@@ -1399,7 +1416,7 @@ static int carl9170_op_ampdu_action(struct ieee80211_hw *hw,
 			spin_unlock_bh(&ar->tx_ampdu_list_lock);
 		}
 
-		RCU_INIT_POINTER(sta_info->agg[tid], NULL);
+		rcu_assign_pointer(sta_info->agg[tid], NULL);
 		rcu_read_unlock();
 
 		ieee80211_stop_tx_ba_cb_irqsafe(vif, sta->addr, tid);
@@ -1797,9 +1814,6 @@ void *carl9170_alloc(size_t priv_size)
 		ar->noise[i] = -95; /* ATH_DEFAULT_NOISE_FLOOR */
 
 	hw->wiphy->flags &= ~WIPHY_FLAG_PS_ON_BY_DEFAULT;
-
-	/* As IBSS Encryption is software-based, IBSS RSN is supported. */
-	hw->wiphy->flags |= WIPHY_FLAG_IBSS_RSN;
 	return ar;
 
 err_nomem:
@@ -1932,6 +1946,10 @@ int carl9170_register(struct ar9170 *ar)
 
 	/* try to read EEPROM, init MAC addr */
 	err = carl9170_read_eeprom(ar);
+	if (err)
+		return err;
+
+	err = carl9170_fw_fix_eeprom(ar);
 	if (err)
 		return err;
 

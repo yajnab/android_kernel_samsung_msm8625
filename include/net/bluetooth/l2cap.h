@@ -23,7 +23,9 @@
    COPYRIGHTS, TRADEMARKS OR OTHER RIGHTS, RELATING TO USE OF THIS
    SOFTWARE IS DISCLAIMED.
 */
-
+#ifdef CONFIG_BT_MGMT
+#include "l2cap_mgmt.h"
+#else
 #ifndef __L2CAP_H
 #define __L2CAP_H
 
@@ -719,3 +721,5 @@ void l2cap_amp_logical_complete(int result, struct hci_conn *ampcon,
 void l2cap_amp_logical_destroyed(struct hci_conn *ampcon);
 
 #endif /* __L2CAP_H */
+
+#endif /* BT_MGMT */

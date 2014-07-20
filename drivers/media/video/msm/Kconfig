@@ -139,16 +139,44 @@ config IMX074_ACT
 config S5K3E2FX
 	bool "Sensor s5k3e2fx (Samsung 5M)"
 	depends on MSM_CAMERA && !ARCH_MSM8X60 && !MSM_CAMERA_V4L2
-	default y
+	default n
 	---help---
 	  Samsung 5M with Autofocus
 
 config QS_S5K4E1
 	bool "Sensor qs_s5k4e1 (Samsung 5M)"
 	depends on MSM_CAMERA && ARCH_MSM8X60 && !MSM_CAMERA_V4L2
-	default y
+	default n
 	---help---
 	  Samsung 5M with Autofocus
+
+config S5K4ECGX
+	bool "Sensor s5k4ecgx (5M)"
+	depends on MSM_CAMERA
+	default n
+	---help---
+	  LSI 5M Sensor with Autofocus
+
+config S5K5CCGX
+	bool "Sensor s5k5ccgx (3M)"
+	depends on MSM_CAMERA
+	default n 
+	---help---
+	  LSI 3M Sensor with Autofocus
+
+config SR300PC20
+	bool "Sensor sr300pc20 (3M)"
+	depends on MSM_CAMERA
+	default n
+	---help---
+	  SiliconFile 3M Sensor
+
+config SR200PC20
+	bool "Sensor sr200pc20 (2M)"
+	depends on MSM_CAMERA
+	default n
+	---help---
+	  SiliconFile 2M Sensor
 
 config S5K4E1
 	bool "Sensor Sensor s5k4e1 (Samsung 5M)"
@@ -213,6 +241,13 @@ config VB6801
 	depends on MSM_CAMERA && !ARCH_MSM8X60 && !MSM_CAMERA_V4L2
 	---help---
 	  5M with flash
+	  
+config SR030PC50
+	bool "Sensor sr030pc50 (VGA)"
+	depends on MSM_CAMERA
+	default n
+	---help---
+	  SiliconFile VGA Sensor
 
 config MSM_CAMERA_FLASH
 	bool "Qualcomm MSM camera flash support"

@@ -39,6 +39,9 @@
 #include <asm/stacktrace.h>
 #include <asm/mach/time.h>
 
+#include <asm/cacheflush.h>
+#include <linux/sec_debug.h>
+
 #ifdef CONFIG_CC_STACKPROTECTOR
 #include <linux/stackprotector.h>
 unsigned long __stack_chk_guard __read_mostly;
@@ -168,6 +171,16 @@ static void __soft_restart(void *addr)
 void soft_restart(unsigned long addr)
 {
 	u64 *stack = soft_restart_stack + ARRAY_SIZE(soft_restart_stack);
+
+#ifdef CONFIG_SEC_DEBUG
+	do {
+		extern void sec_save_final_context(void);
+		sec_save_final_context();
+	} while (0);
+#endif
+
+	flush_cache_all();
+	outer_flush_all();
 
 	/* Disable interrupts first */
 	local_irq_disable();
@@ -301,6 +314,14 @@ __setup("reboot=", reboot_setup);
 void machine_shutdown(void)
 {
 #ifdef CONFIG_SMP
+	/*
+	 * Disable preemption so we're guaranteed to
+	 * run to power off or reboot and prevent
+	 * the possibility of switching to another
+	 * thread that might wind up blocking on
+	 * one of the stopped CPUs.
+	 */
+	preempt_disable(); //case 01074182. 
 	smp_send_stop();
 #endif
 }

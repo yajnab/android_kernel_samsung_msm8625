@@ -61,7 +61,7 @@ config VT_CONSOLE
 	  If unsure, say Y.
 
 config VT_CONSOLE_SLEEP
-	def_bool y
+	def_bool n
 	depends on VT_CONSOLE && PM_SLEEP
 
 config HW_CONSOLE
