@@ -1916,7 +1916,6 @@ static inline void hci_auth_complete_evt(struct hci_dev *hdev, struct sk_buff *s
 
     #if defined(CONFIG_BT_CSR_7820) 
 	if (ev->status == 0x06) {
-		struct hci_cp_auth_requested cp;
 		hci_remove_link_key(hdev, &conn->dst);
 
 		BT_ERR("Pin or key missing on 8810");
