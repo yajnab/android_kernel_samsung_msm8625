@@ -66,7 +66,7 @@ static void msm_pm_restart(char str, const char *cmd)
 		printk(KERN_EMERG "smem_flag is NULL\n");
 	}
 
-	printk(KERN_EMERG, "The reset reason is %x\n", restart_reason);
+	printk(KERN_EMERG "The reset reason is %x\n", restart_reason);
 
 //case01117953 patch
 /*
