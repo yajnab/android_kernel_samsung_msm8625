@@ -272,6 +272,8 @@ static eISCRet_t mms100_check_operating_mode(struct i2c_client *_client, const e
 #include <linux/gpio.h>
 extern unsigned int board_hw_revision;
 #define TSP_MODULE_GPIO 30
+
+#if !defined(CONFIG_MACH_DELOS_DUOS_CTC) && !defined(CONFIG_MACH_DELOS_OPEN) && !defined(CONFIG_MACH_HENNESSY_DUOS_CTC) && !defined(CONFIG_MACH_ARUBASLIMQ_OPEN_CHN)
 static eISCRet_t mms100_check_hwversion_mode2(struct i2c_client *_client, const eErrCode_t _error_code)
 {
     int ret;
@@ -295,6 +297,7 @@ static eISCRet_t mms100_check_hwversion_mode2(struct i2c_client *_client, const 
 
     return ISC_SUCCESS;
 }
+#endif
 
 static eISCRet_t mms100_check_hwversion_mode(struct i2c_client *_client, const eErrCode_t _error_code)
 {

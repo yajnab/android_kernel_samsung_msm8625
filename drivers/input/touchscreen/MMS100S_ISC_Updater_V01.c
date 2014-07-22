@@ -155,7 +155,7 @@ MFS_ISC_UPDATE_CRC_Error_FINISH:
 
 eMFSRet_t check_module_compatibility(const unsigned char *_pBinary_Data)
 {
-	unsigned char write_buffer, read_buffer;
+	unsigned char read_buffer;
 	unsigned char moduleComp, setComp;
 	printk(KERN_ERR "<MELFAS> Check Module Compatibility\n");
 
@@ -188,7 +188,7 @@ eMFSRet_t check_module_compatibility(const unsigned char *_pBinary_Data)
 
 eMFSRet_t check_firmware_version(const unsigned char *_pBinary_Data)
 {
-	unsigned char write_buffer, read_buffer;
+	unsigned char read_buffer;
 	unsigned char moduleVersion, setVersion;
 	printk(KERN_ERR "<MELFAS> Check Firmware Version\n");
 	melfas_fw_i2c_read(FIRMWARE_VERSION_ADDR, &read_buffer, 1);
@@ -295,12 +295,13 @@ int firmware_verify(const unsigned char *_pBinary_Data)
 		start_addr = DATA_SIZE*k/CLENGTH;
 		return MRET_SUCCESS;
 	}
+	return MRET_SUCCESS;
 }
 
 int mass_erase(void)
 {
 	int i = 0, j = 0;
-	const unsigned char mass_erase_cmd[MFS_HEADER_] = {
+	unsigned char mass_erase_cmd[MFS_HEADER_] = {
 						ISC_CMD_ISC_ADDR, 0, 0xC1, 0, 0};
 	unsigned char read_buffer[4] = { 0, };
 
