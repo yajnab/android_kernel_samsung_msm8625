@@ -351,7 +351,7 @@ static int stc311x_get_property(struct power_supply *psy,
 		val->intval = chip->batt_soc;
 #if defined(CONFIG_BATTERY_STC3115_DELOS)
 #ifdef CONFIG_BLX
-		if ((get_charginglimit() == MAX_CHARGINGLIMIT || chip->soc < get_charginglimit())||(val->intval > 100)){
+		if ((get_charginglimit() == MAX_CHARGINGLIMIT || chip->batt_soc < get_charginglimit())||(val->intval > 100)){
 #else
 		if (val->intval > 100) {
 #endif
@@ -432,7 +432,7 @@ static void stc311x_get_status(struct i2c_client *client)
 		chip->status = POWER_SUPPLY_STATUS_DISCHARGING;
 	}
 #ifdef CONFIG_BLX
-	if ((get_charginglimit() != MAX_CHARGINGLIMIT && chip->soc >= get_charginglimit())||
+	if ((get_charginglimit() != MAX_CHARGINGLIMIT && chip->batt_soc >= get_charginglimit())||
 	     (chip->batt_soc > STC3100_BATTERY_FULL)){
 #else
 	if (chip->batt_soc > STC3100_BATTERY_FULL) {
