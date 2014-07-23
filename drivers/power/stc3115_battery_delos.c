@@ -16,7 +16,7 @@
 #include <linux/mutex.h>
 #include <linux/err.h>
 #ifdef CONFIG_BLX
-#include <blx.h>
+#include <linux/blx.h>
 #endif
 #include <linux/i2c.h>
 #include <linux/delay.h>
