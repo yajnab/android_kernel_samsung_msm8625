@@ -129,9 +129,6 @@ static struct platform_driver ath6kl_pm_device = {
 
 void __init ath6kl_sdio_init_platform(void)
 {
-	char buf[3];
-	int length;
-
 	platform_driver_register(&ath6kl_pm_device);
 
 	mdelay(50);
@@ -139,8 +136,6 @@ void __init ath6kl_sdio_init_platform(void)
 
 void __exit ath6kl_sdio_exit_platform(void)
 {
-	char buf[3];
-	int length;
 	platform_driver_unregister(&ath6kl_pm_device);
 
 	mdelay(1000);
