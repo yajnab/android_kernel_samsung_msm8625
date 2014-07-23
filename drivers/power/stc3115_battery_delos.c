@@ -15,6 +15,9 @@
 #include <linux/platform_device.h>
 #include <linux/mutex.h>
 #include <linux/err.h>
+#ifdef CONFIG_BLX
+#include <blx.h>
+#endif
 #include <linux/i2c.h>
 #include <linux/delay.h>
 #include <linux/power_supply.h>
@@ -347,8 +350,12 @@ static int stc311x_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CAPACITY:
 		val->intval = chip->batt_soc;
 #if defined(CONFIG_BATTERY_STC3115_DELOS)
-		if (val->intval > 100)
-			val->intval = 100;
+#ifdef CONFIG_BLX
+		if ((get_charginglimit() == MAX_CHARGINGLIMIT || chip->soc < get_charginglimit())||(val->intval > 100)){
+#else
+		if (val->intval > 100) {
+#endif
+			val->intval = 100;}
 		else if (val->intval < 0)
 			val->intval = 0;
 #endif
@@ -424,8 +431,14 @@ static void stc311x_get_status(struct i2c_client *client)
 	} else {
 		chip->status = POWER_SUPPLY_STATUS_DISCHARGING;
 	}
-	if (chip->batt_soc > STC3100_BATTERY_FULL)
+#ifdef CONFIG_BLX
+	if ((get_charginglimit() != MAX_CHARGINGLIMIT && chip->soc >= get_charginglimit())||
+	     (chip->batt_soc > STC3100_BATTERY_FULL)){
+#else
+	if (chip->batt_soc > STC3100_BATTERY_FULL) {
+#endif
 		chip->status = POWER_SUPPLY_STATUS_FULL;
+	}
 }
 
 /* -------------------------------------------------------------------------- */
