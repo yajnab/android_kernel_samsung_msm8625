@@ -2991,18 +2991,11 @@ static void eoc_worker(struct work_struct *work)
 
 		if (is_ext_charging(chip))
 			chip->ext_charge_done = true;
-    #ifdef CONFIG_BLX
-        //if (chip->is_bat_warm || chip->is_bat_cool)
-          //  chip->bms_notify.is_battery_full = 0;
-        //else
-          //  chip->bms_notify.is_battery_full = 1;
-    #else
-        if (chip->is_bat_warm || chip->is_bat_cool)
-          chip->bms_notify.is_battery_full = 0;
-        else
-          chip->bms_notify.is_battery_full = 1;
-     #endif
-        
+
+		if (chip->is_bat_warm || chip->is_bat_cool)
+			chip->bms_notify.is_battery_full = 0;
+		else
+			chip->bms_notify.is_battery_full = 1;
 		/* declare end of charging by invoking chgdone interrupt */
 		chgdone_irq_handler(chip->pmic_chg_irq[CHGDONE_IRQ], chip);
 		wake_unlock(&chip->eoc_wake_lock);
